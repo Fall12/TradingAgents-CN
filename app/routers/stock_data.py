@@ -244,39 +244,44 @@ async def search_stocks(
         # 如果是6位数字，按代码精确匹配
         if keyword.isdigit() and len(keyword) == 6:
             search_conditions.append({"symbol": keyword})
+            search_conditions.append({"code": keyword})
         else:
-            # 按名称模糊匹配
+            # 按名称模糊匹配（中文名等）
             search_conditions.append({"name": {"$regex": keyword, "$options": "i"}})
             # 如果包含数字，也尝试代码匹配
             if any(c.isdigit() for c in keyword):
                 search_conditions.append({"symbol": {"$regex": keyword}})
+                search_conditions.append({"code": {"$regex": keyword}})
 
-        # 🔥 添加数据源筛选：只查询优先级最高的数据源
-        query = {
-            "$and": [
-                {"$or": search_conditions},
-                {"source": preferred_source}
-            ]
-        }
-
-        # 执行搜索
-        cursor = collection.find(query, {"_id": 0}).limit(limit)
-
-        results = await cursor.to_list(length=limit)
-
-        # 数据标准化
+        # 优先查配置数据源；无结果时回退其他源 / 不限源
+        # （当前库可能只有 akshare，而配置优先 tushare，会导致中文搜索为空）
         service = get_stock_data_service()
         standardized_results = []
-        for doc in results:
-            standardized_doc = service._standardize_basic_info(doc)
-            standardized_results.append(standardized_doc)
+        used_source = preferred_source
+        source_try_order = [preferred_source] + [s for s in enabled_sources if s != preferred_source] + [None]
+
+        for source_filter in source_try_order:
+            query = (
+                {"$and": [{"$or": search_conditions}, {"source": source_filter}]}
+                if source_filter
+                else {"$or": search_conditions}
+            )
+            cursor = collection.find(query, {"_id": 0}).limit(limit)
+            results = await cursor.to_list(length=limit)
+            if not results:
+                continue
+            standardized_results = [
+                service._standardize_basic_info(doc) for doc in results
+            ]
+            used_source = source_filter or (results[0].get("source") if results else preferred_source)
+            break
 
         return {
             "success": True,
             "data": standardized_results,
             "total": len(standardized_results),
             "keyword": keyword,
-            "source": preferred_source,  # 🔥 返回数据来源
+            "source": used_source,
             "message": "搜索完成"
         }
         

@@ -35,20 +35,33 @@
                 <el-row :gutter="16">
                   <el-col :span="12">
                     <el-form-item label="股票代码" required>
-                      <el-input
+                      <el-autocomplete
                         v-model="analysisForm.stockCode"
-                        placeholder="如：000001、AAPL、700、1810"
+                        :fetch-suggestions="queryStockSuggestions"
+                        :trigger-on-focus="false"
                         clearable
                         size="large"
                         class="stock-input"
                         :class="{ 'is-error': stockCodeError }"
-                        @blur="validateStockCodeInput"
+                        placeholder="输入代码或中文名，下拉选择，如：腾讯 / 00700"
+                        value-key="value"
+                        :debounce="300"
+                        highlight-first-item
+                        @select="onStockSuggestionSelect"
+                        @blur="onStockCodeBlur"
                         @input="onStockCodeInput"
                       >
                         <template #prefix>
                           <el-icon><TrendCharts /></el-icon>
                         </template>
-                      </el-input>
+                        <template #default="{ item }">
+                          <div class="stock-suggestion-item">
+                            <span class="code">{{ item.value }}</span>
+                            <span class="name">{{ item.name }}</span>
+                            <span v-if="item.industry" class="industry">{{ item.industry }}</span>
+                          </div>
+                        </template>
+                      </el-autocomplete>
                       <div v-if="stockCodeError" class="error-message">
                         <el-icon><WarningFilled /></el-icon>
                         {{ stockCodeError }}
@@ -717,6 +730,8 @@ import { marked } from 'marked'
 import { recommendModels } from '@/api/modelCapabilities'
 import { validateStockCode, getStockCodeFormatHelp } from '@/utils/stockValidator'
 import { normalizeMarketForAnalysis, getMarketByStockCode } from '@/utils/market'
+import { searchStocks as searchMultiMarketStocks } from '@/api/multiMarket'
+import { ApiClient } from '@/api/request'
 
 // 配置marked选项
 marked.setOptions({
@@ -832,17 +847,186 @@ const disabledDate = (time: Date) => {
 
 // 股票代码输入时的处理
 const onStockCodeInput = () => {
-  // 清除错误信息
   stockCodeError.value = ''
-  // 显示格式提示
+  const raw = analysisForm.stockCode.trim()
+  if (!raw) {
+    stockCodeHelp.value = ''
+    return
+  }
+  // 中文名：提示从下拉选择，不要当成代码格式错误
+  if (/[\u4e00-\u9fff]/.test(raw)) {
+    stockCodeHelp.value = '正在搜索，请从下拉列表选择对应代码'
+    return
+  }
   stockCodeHelp.value = getStockCodeFormatHelp(analysisForm.market)
+}
+
+interface StockSuggestion {
+  value: string
+  name: string
+  industry?: string
+  market?: string
+}
+
+const marketToSearchCode = (market: MarketType): string => {
+  if (market === '港股') return 'HK'
+  if (market === '美股') return 'US'
+  return 'CN'
+}
+
+const normalizeSuggestionCode = (raw: string, marketCode: string): string => {
+  let code = String(raw || '').trim()
+  if (!code) return ''
+  const lower = code.toLowerCase()
+  if (lower.startsWith('hk')) code = lower.slice(2)
+  else if (lower.startsWith('sh') || lower.startsWith('sz') || lower.startsWith('bj')) code = lower.slice(2)
+  else if (lower.startsWith('us')) code = code.slice(2).toUpperCase()
+
+  if (marketCode === 'HK' && /^\d+$/.test(code)) {
+    return code.padStart(5, '0')
+  }
+  if (marketCode === 'CN' && /^\d+$/.test(code)) {
+    return code.padStart(6, '0').slice(-6)
+  }
+  return code
+}
+
+/** 远程中文名 / 代码搜索建议 */
+const queryStockSuggestions = async (
+  queryString: string,
+  cb: (items: StockSuggestion[]) => void
+) => {
+  const q = queryString.trim()
+  if (!q) {
+    cb([])
+    return
+  }
+
+  try {
+    const marketCode = marketToSearchCode(analysisForm.market)
+    let suggestions: StockSuggestion[] = []
+
+    try {
+      const res: any = await searchMultiMarketStocks(marketCode, q, 12)
+      const stocks = res?.data?.stocks || res?.stocks || []
+      suggestions = stocks.map((s: any) => ({
+        value: normalizeSuggestionCode(String(s.code || s.symbol || s.westock_code || ''), marketCode),
+        name: s.name || '',
+        industry: s.industry || s.type || '',
+        market: s.market || marketCode
+      })).filter((s: StockSuggestion) => s.value)
+
+      // 前端再按名称相关度排序，确保「腾讯」优先 00700
+      const ql = q.toLowerCase()
+      suggestions.sort((a, b) => {
+        const score = (s: StockSuggestion) => {
+          const name = (s.name || '').toLowerCase()
+          if (name === ql || s.value === q) return 0
+          if (name.startsWith(ql)) return 1
+          if (name.includes(ql)) return 2
+          return 9
+        }
+        return score(a) - score(b)
+      })
+    } catch (e) {
+      console.warn('多市场搜索失败，回退 stock-data/search', e)
+    }
+
+    if (suggestions.length === 0 && marketCode === 'CN') {
+      const res: any = await ApiClient.get('/api/stock-data/search', { keyword: q, limit: 12 })
+      const rows = res?.data || res || []
+      suggestions = (Array.isArray(rows) ? rows : []).map((s: any) => ({
+        value: normalizeSuggestionCode(String(s.symbol || s.code || ''), marketCode),
+        name: s.name || '',
+        industry: s.industry || '',
+        market: s.market || marketCode
+      })).filter((s: StockSuggestion) => s.value)
+    }
+
+    cb(suggestions)
+  } catch (error) {
+    console.error('股票搜索失败:', error)
+    cb([])
+  }
+}
+
+const onStockSuggestionSelect = (item: StockSuggestion) => {
+  const marketCode = marketToSearchCode(analysisForm.market)
+  const code = normalizeSuggestionCode(item.value, marketCode)
+  analysisForm.stockCode = code
+  analysisForm.symbol = code
+  stockCodeError.value = ''
+  stockCodeHelp.value = item.name ? `✓ ${code} ${item.name}` : `✓ ${code}`
+  // 稍后再校验，避免 blur 抢先把中文名判错
+  setTimeout(() => validateStockCodeInput(), 0)
+}
+
+const onStockCodeBlur = async () => {
+  const raw = analysisForm.stockCode.trim()
+  if (!raw) {
+    stockCodeError.value = ''
+    stockCodeHelp.value = ''
+    return
+  }
+
+  // 中文名未点选：自动取相关度最高的搜索结果填入代码
+  if (/[\u4e00-\u9fff]/.test(raw)) {
+    try {
+      const marketCode = marketToSearchCode(analysisForm.market)
+      let stocks: any[] = []
+      try {
+        const res: any = await searchMultiMarketStocks(marketCode, raw, 8)
+        stocks = res?.data?.stocks || res?.stocks || []
+      } catch (_) {
+        stocks = []
+      }
+      // A股多市场接口失败时回退 stock-data
+      if ((!stocks || stocks.length === 0) && marketCode === 'CN') {
+        const res: any = await ApiClient.get('/api/stock-data/search', { keyword: raw, limit: 8 })
+        const rows = res?.data || res || []
+        stocks = Array.isArray(rows) ? rows : []
+      }
+      if (stocks.length > 0) {
+        const q = raw.toLowerCase()
+        const scored = [...stocks].sort((a, b) => {
+          const score = (s: any) => {
+            const name = String(s.name || '').toLowerCase()
+            const code = String(s.code || s.symbol || '')
+            if (name === q || code === q) return 0
+            if (name.startsWith(q)) return 1
+            if (name.includes(q)) return 2
+            return 9
+          }
+          return score(a) - score(b)
+        })
+        const best = scored[0]
+        const code = normalizeSuggestionCode(String(best.code || best.symbol || ''), marketCode)
+        if (code) {
+          analysisForm.stockCode = code
+          analysisForm.symbol = code
+          stockCodeError.value = ''
+          stockCodeHelp.value = `✓ ${code} ${best.name || ''}`
+          return
+        }
+      }
+      stockCodeError.value = '未找到匹配股票，请从下拉列表选择'
+      stockCodeHelp.value = ''
+      return
+    } catch (e) {
+      stockCodeError.value = '搜索失败，请输入股票代码或稍后重试'
+      stockCodeHelp.value = ''
+      return
+    }
+  }
+
+  validateStockCodeInput()
 }
 
 // 市场类型变更时的处理
 const onMarketChange = () => {
   // 重新验证股票代码
   if (analysisForm.stockCode.trim()) {
-    validateStockCodeInput()
+    onStockCodeBlur()
   } else {
     // 显示新市场的格式提示
     stockCodeHelp.value = getStockCodeFormatHelp(analysisForm.market)
@@ -859,6 +1043,13 @@ const validateStockCodeInput = () => {
     return
   }
 
+  // 仍含中文：不按代码格式报错
+  if (/[\u4e00-\u9fff]/.test(code)) {
+    stockCodeHelp.value = '请从下拉列表选择股票（将自动填入代码）'
+    stockCodeError.value = ''
+    return
+  }
+
   // 验证股票代码格式
   const validation = validateStockCode(code, analysisForm.market)
 
@@ -867,7 +1058,9 @@ const validateStockCodeInput = () => {
     stockCodeHelp.value = ''
   } else {
     stockCodeError.value = ''
-    stockCodeHelp.value = `✓ ${validation.market}代码格式正确`
+    stockCodeHelp.value = stockCodeHelp.value?.startsWith('✓') && stockCodeHelp.value.includes(' ')
+      ? stockCodeHelp.value
+      : `✓ ${validation.market}代码格式正确`
 
     // 自动更新市场类型（如果识别出的市场与当前选择不同）
     if (validation.market && validation.market !== analysisForm.market) {
@@ -878,6 +1071,7 @@ const validateStockCodeInput = () => {
     // 标准化代码
     if (validation.normalizedCode) {
       analysisForm.stockCode = validation.normalizedCode
+      analysisForm.symbol = validation.normalizedCode
     }
   }
 
@@ -906,10 +1100,20 @@ const toggleAnalyst = (analystName: string) => {
 
 // 提交分析
 const submitAnalysis = async () => {
-  const stockCode = analysisForm.stockCode.trim()
+  let stockCode = analysisForm.stockCode.trim()
   if (!stockCode) {
-    ElMessage.warning('请输入股票代码')
+    ElMessage.warning('请输入股票代码或中文名')
     return
+  }
+
+  // 中文名先解析成代码
+  if (/[\u4e00-\u9fff]/.test(stockCode)) {
+    await onStockCodeBlur()
+    stockCode = analysisForm.stockCode.trim()
+    if (/[\u4e00-\u9fff]/.test(stockCode) || !stockCode) {
+      ElMessage.error('请从下拉列表选择股票，或输入正确代码')
+      return
+    }
   }
 
   // 验证股票代码格式
@@ -2342,15 +2546,39 @@ onMounted(async () => {
       }
 
       .stock-input {
+        width: 100%;
+
         :deep(.el-input__inner) {
           font-weight: 600;
-          text-transform: uppercase;
         }
 
         &.is-error {
           :deep(.el-input__inner) {
             border-color: #f56c6c;
           }
+        }
+      }
+
+      .stock-suggestion-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+
+        .code {
+          font-weight: 700;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+          min-width: 64px;
+        }
+
+        .name {
+          flex: 1;
+          color: var(--el-text-color-regular);
+        }
+
+        .industry {
+          font-size: 12px;
+          color: var(--el-text-color-secondary);
         }
       }
 

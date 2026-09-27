@@ -185,11 +185,21 @@ class UnifiedStockService:
             ]
         }
 
-        # 查询所有匹配的记录
-        cursor = collection.find(filter_query)
+        # 查询所有匹配的记录（排除 _id，避免 ObjectId 序列化失败）
+        cursor = collection.find(filter_query, {"_id": 0})
         all_results = await cursor.to_list(length=None)
-        
+
+        # 库中无数据（尤其港股/美股基础表可能未同步）时，回退 WeStock 名称搜索
         if not all_results:
+            try:
+                from tradingagents.dataflows.providers.westock_cli import search_stocks as westock_search
+
+                ws = westock_search(query, market_hint=market, limit=limit)
+                if ws:
+                    logger.info(f"🔍 搜索 {market} 市场: '{query}' -> WeStock 回退 {len(ws)} 条")
+                    return ws
+            except Exception as e:
+                logger.warning(f"WeStock 搜索回退失败: {e}")
             return []
         
         # 按 code 分组，每个 code 只保留优先级最高的数据源
@@ -197,24 +207,44 @@ class UnifiedStockService:
         unique_results = {}
         
         for doc in all_results:
-            code = doc.get("code")
+            code = doc.get("code") or doc.get("symbol")
             source = doc.get("source")
             
+            if not code:
+                continue
+            # 再清一次可能残留的非 JSON 类型
+            clean = {k: v for k, v in doc.items() if k != "_id" and not hasattr(v, "binary")}
+            clean.setdefault("code", code)
+            clean.setdefault("market", market)
+
             if code not in unique_results:
-                unique_results[code] = doc
+                unique_results[code] = clean
             else:
-                # 比较优先级
                 current_source = unique_results[code].get("source")
                 try:
                     if source in source_priority and current_source in source_priority:
                         if source_priority.index(source) < source_priority.index(current_source):
-                            unique_results[code] = doc
+                            unique_results[code] = clean
                 except ValueError:
-                    # 如果source不在优先级列表中，保持当前记录
                     pass
         
-        # 返回前 limit 条
-        result_list = list(unique_results.values())[:limit]
+        # 名称相关度排序：精确/前缀/包含优先
+        q = (query or "").strip().lower()
+
+        def _rank(item: dict) -> tuple:
+            name = (item.get("name") or "").lower()
+            code = str(item.get("code") or "")
+            if name == q or code == q or code.lstrip("0") == q.lstrip("0"):
+                rel = 0
+            elif name.startswith(q):
+                rel = 1
+            elif q in name:
+                rel = 2
+            else:
+                rel = 9
+            return (rel, len(name), code)
+
+        result_list = sorted(unique_results.values(), key=_rank)[:limit]
         logger.info(f"🔍 搜索 {market} 市场: '{query}' -> {len(result_list)} 条结果（已去重）")
         return result_list
 

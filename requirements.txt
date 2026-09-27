@@ -18,6 +18,7 @@ chromadb
 setuptools
 akshare>=1.17.86
 tushare
+pytdx
 baostock
 finnhub-python
 parsel

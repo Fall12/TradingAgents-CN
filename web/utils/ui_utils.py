@@ -13,66 +13,58 @@ def apply_hide_deploy_button_css():
     """
     st.markdown("""
     <style>
-        /* 隐藏Streamlit顶部工具栏和Deploy按钮 - 多种选择器确保兼容性 */
-        .stAppToolbar {
-            display: none !important;
+        /* stToolbar承载窄视口下的侧边栏展开按钮, 不能整体隐藏, 仅做透明 */
+        .stAppToolbar,
+        [data-testid="stToolbar"],
+        div[data-testid="stToolbar"] {
+            background: transparent !important;
+            box-shadow: none !important;
+            border: none !important;
+            backdrop-filter: none !important;
         }
-        
+
+        /* header保留(承载侧边栏展开/收起按钮), 仅做透明处理 */
         header[data-testid="stHeader"] {
-            display: none !important;
+            background: transparent !important;
+            backdrop-filter: none !important;
+            box-shadow: none !important;
         }
-        
+
         .stDeployButton {
             display: none !important;
         }
-        
-        /* 新版本Streamlit的Deploy按钮选择器 */
-        [data-testid="stToolbar"] {
-            display: none !important;
-        }
-        
+
         [data-testid="stDecoration"] {
             display: none !important;
         }
-        
+
         [data-testid="stStatusWidget"] {
             display: none !important;
         }
-        
-        /* 隐藏整个顶部区域 */
-        .stApp > header {
-            display: none !important;
-        }
-        
-        .stApp > div[data-testid="stToolbar"] {
-            display: none !important;
-        }
-        
-        /* 隐藏主菜单按钮 */
+
+        /* 隐藏主菜单按钮(不影响侧边栏展开控制) */
+        [data-testid="stMainMenu"],
         #MainMenu {
             visibility: hidden !important;
             display: none !important;
         }
-        
+
+        /* 隐藏toolbar内非侧边栏控制的所有按钮(Deploy/分享等) */
+        [data-testid="stToolbar"] button:not([data-testid="stExpandSidebarButton"]):not([data-testid="stBaseButton-headerNoPadding"]):not([data-testid="stBaseButton-header"]),
+        [data-testid="stDeployButton"] {
+            display: none !important;
+            visibility: hidden !important;
+        }
+
         /* 隐藏页脚 */
         footer {
             visibility: hidden !important;
             display: none !important;
         }
-        
+
         /* 隐藏"Made with Streamlit"标识 */
         .viewerBadge_container__1QSob {
             display: none !important;
-        }
-        
-        /* 隐藏所有可能的工具栏元素 */
-        div[data-testid="stToolbar"] {
-            display: none !important;
-        }
-        
-        /* 隐藏右上角的所有按钮 */
-        .stApp > div > div > div > div > section > div {
-            padding-top: 0 !important;
         }
     </style>
     """, unsafe_allow_html=True)

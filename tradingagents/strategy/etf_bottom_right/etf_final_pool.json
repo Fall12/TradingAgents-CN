@@ -1,0 +1,468 @@
+{
+  "total_original": 72,
+  "total_final": 44,
+  "excluded": [
+    "510210",
+    "511880",
+    "511990"
+  ],
+  "representatives": [
+    {
+      "symbol": "159273",
+      "name": "云计算ETF汇添富",
+      "sector": "云计算大数据",
+      "orig_sector": "云计算大数据",
+      "avg_amount_20d": 44402041.55505,
+      "data_count": 488,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "159819",
+      "name": "人工智能ETF易方达",
+      "sector": "人工智能",
+      "orig_sector": "人工智能",
+      "avg_amount_20d": 746656026.9507,
+      "data_count": 1426,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "512980",
+      "name": "传媒ETF广发",
+      "sector": "传媒游戏",
+      "orig_sector": "传媒游戏",
+      "avg_amount_20d": 355503743.5252,
+      "data_count": 2073,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "159540",
+      "name": "信创ETF易方达",
+      "sector": "信创",
+      "orig_sector": "信创",
+      "avg_amount_20d": 35009963.171500005,
+      "data_count": 694,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "159998",
+      "name": "计算机ETF天弘",
+      "sector": "信息技术",
+      "orig_sector": "信息技术",
+      "avg_amount_20d": 130685761.87465,
+      "data_count": 1534,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "515790",
+      "name": "光伏ETF华泰柏瑞",
+      "sector": "光伏",
+      "orig_sector": "光伏",
+      "avg_amount_20d": 248121215.2374,
+      "data_count": 1370,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "515110",
+      "name": "一带一路ETF易方达",
+      "sector": "其他主题",
+      "orig_sector": "区域主题",
+      "avg_amount_20d": 9064810.56,
+      "data_count": 1590,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "512710",
+      "name": "军工龙头ETF富国",
+      "sector": "军工",
+      "orig_sector": "军工",
+      "avg_amount_20d": 340735148.27365005,
+      "data_count": 1684,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "516810",
+      "name": "农业ETF华夏",
+      "sector": "农业",
+      "orig_sector": "农业",
+      "avg_amount_20d": 79877807.18499999,
+      "data_count": 1108,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "159992",
+      "name": "创新药ETF银华",
+      "sector": "创新药",
+      "orig_sector": "创新药",
+      "avg_amount_20d": 1186235240.6303,
+      "data_count": 1539,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "159870",
+      "name": "化工ETF鹏华",
+      "sector": "化工",
+      "orig_sector": "化工",
+      "avg_amount_20d": 433809178.85545,
+      "data_count": 1319,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "513060",
+      "name": "恒生医疗ETF博时",
+      "sector": "医药医疗",
+      "orig_sector": "医药健康",
+      "avg_amount_20d": 749608916.8306,
+      "data_count": 1305,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "512480",
+      "name": "半导体ETF国联安",
+      "sector": "半导体芯片",
+      "orig_sector": "半导体芯片",
+      "avg_amount_20d": 2195568164.4395,
+      "data_count": 1741,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "588020",
+      "name": "科创成长ETF易方达",
+      "sector": "因子策略",
+      "orig_sector": "因子策略",
+      "avg_amount_20d": 253796586.70085,
+      "data_count": 714,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "560280",
+      "name": "工程机械ETF广发",
+      "sector": "基建",
+      "orig_sector": "基建",
+      "avg_amount_20d": 201047500.5135,
+      "data_count": 674,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "560700",
+      "name": "央企红利ETF广发",
+      "sector": "央企国企",
+      "orig_sector": "央企国企",
+      "avg_amount_20d": 16878070.01995,
+      "data_count": 770,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "159176",
+      "name": "家电ETF华宝",
+      "sector": "家电",
+      "orig_sector": "家电",
+      "avg_amount_20d": 9230016.123,
+      "data_count": 172,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "512100",
+      "name": "中证1000ETF南方",
+      "sector": "宽基中证1000",
+      "orig_sector": "宽基中证1000",
+      "avg_amount_20d": 6273023345.4937,
+      "data_count": 2333,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "563300",
+      "name": "中证2000ETF华泰柏瑞",
+      "sector": "宽基中证2000",
+      "orig_sector": "宽基中证2000",
+      "avg_amount_20d": 1158371340.8087,
+      "data_count": 704,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "510500",
+      "name": "中证500ETF南方",
+      "sector": "宽基中证500",
+      "orig_sector": "宽基中证500",
+      "avg_amount_20d": 4978317780.21155,
+      "data_count": 2334,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "159915",
+      "name": "创业板ETF易方达",
+      "sector": "宽基创业板",
+      "orig_sector": "宽基创业板",
+      "avg_amount_20d": 10662732686.9995,
+      "data_count": 2333,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "510300",
+      "name": "沪深300ETF华泰柏瑞",
+      "sector": "宽基大盘",
+      "orig_sector": "宽基沪深300",
+      "avg_amount_20d": 7307815706.10565,
+      "data_count": 2330,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "588000",
+      "name": "科创50ETF华夏",
+      "sector": "宽基科创",
+      "orig_sector": "宽基科创50",
+      "avg_amount_20d": 11787163513.4058,
+      "data_count": 1394,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "512200",
+      "name": "房地产ETF南方",
+      "sector": "房地产",
+      "orig_sector": "房地产",
+      "avg_amount_20d": 116432494.88500002,
+      "data_count": 2151,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "516160",
+      "name": "新能源ETF南方",
+      "sector": "新能源综合",
+      "orig_sector": "新能源综合",
+      "avg_amount_20d": 203958005.9803,
+      "data_count": 1337,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "515030",
+      "name": "新能源车ETF华夏",
+      "sector": "新能源车",
+      "orig_sector": "新能源车",
+      "avg_amount_20d": 147777062.18129998,
+      "data_count": 1565,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "512400",
+      "name": "有色金属ETF南方",
+      "sector": "有色资源",
+      "orig_sector": "有色资源",
+      "avg_amount_20d": 1148251650.6457999,
+      "data_count": 2171,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "562500",
+      "name": "机器人ETF华夏",
+      "sector": "机器人",
+      "orig_sector": "机器人",
+      "avg_amount_20d": 754652011.81025,
+      "data_count": 1120,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "159667",
+      "name": "工业母机ETF国泰",
+      "sector": "机械制造",
+      "orig_sector": "机械制造",
+      "avg_amount_20d": 218886433.06975,
+      "data_count": 923,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "513330",
+      "name": "恒生互联网ETF华夏",
+      "sector": "海外互联网",
+      "orig_sector": "中概互联",
+      "avg_amount_20d": 2606900478.9848003,
+      "data_count": 1331,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "159792",
+      "name": "港股通互联网ETF富国",
+      "sector": "海外宽基",
+      "orig_sector": "海外指数",
+      "avg_amount_20d": 3114504646.20275,
+      "data_count": 1177,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "513180",
+      "name": "恒生科技ETF华夏",
+      "sector": "海外科技",
+      "orig_sector": "科技综合",
+      "avg_amount_20d": 3621588947.3882,
+      "data_count": 1264,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "159732",
+      "name": "消费电子ETF华夏",
+      "sector": "消费综合",
+      "orig_sector": "消费综合",
+      "avg_amount_20d": 475523488.0596,
+      "data_count": 1205,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "512580",
+      "name": "环保ETF广发",
+      "sector": "环保",
+      "orig_sector": "环保",
+      "avg_amount_20d": 7883362.7299999995,
+      "data_count": 2288,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "561560",
+      "name": "电力ETF华泰柏瑞",
+      "sector": "电力",
+      "orig_sector": "电力",
+      "avg_amount_20d": 116227561.8879,
+      "data_count": 1029,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "159755",
+      "name": "电池ETF广发",
+      "sector": "电池储能",
+      "orig_sector": "电池储能",
+      "avg_amount_20d": 462367147.33070004,
+      "data_count": 1247,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "512690",
+      "name": "酒ETF鹏华",
+      "sector": "白酒消费",
+      "orig_sector": "白酒消费",
+      "avg_amount_20d": 878238290.32285,
+      "data_count": 1763,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "159207",
+      "name": "高股息ETF广发",
+      "sector": "红利",
+      "orig_sector": "红利",
+      "avg_amount_20d": 162593928.8,
+      "data_count": 325,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "512880",
+      "name": "证券ETF国泰",
+      "sector": "证券",
+      "orig_sector": "证券",
+      "avg_amount_20d": 2370841859.67985,
+      "data_count": 2330,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "515880",
+      "name": "通信ETF国泰",
+      "sector": "通信5G",
+      "orig_sector": "通信5G",
+      "avg_amount_20d": 5237611574.27825,
+      "data_count": 1680,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "513140",
+      "name": "港股通金融ETF华泰柏瑞",
+      "sector": "金融综合",
+      "orig_sector": "金融综合",
+      "avg_amount_20d": 62493011.53499999,
+      "data_count": 864,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "159253",
+      "name": "银行ETF博时",
+      "sector": "银行",
+      "orig_sector": "银行",
+      "avg_amount_20d": 8365112.3375,
+      "data_count": 162,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "515170",
+      "name": "食品饮料ETF华夏",
+      "sector": "食品饮料",
+      "orig_sector": "食品饮料",
+      "avg_amount_20d": 121358471.79245,
+      "data_count": 1349,
+      "latest_date": "2026-08-07"
+    },
+    {
+      "symbol": "159834",
+      "name": "金ETF南方",
+      "sector": "黄金",
+      "orig_sector": "黄金",
+      "avg_amount_20d": 127889056.15749998,
+      "data_count": 1071,
+      "latest_date": "2026-08-07"
+    }
+  ],
+  "sector_mapping": {
+    "159273": "云计算大数据",
+    "159819": "人工智能",
+    "512980": "传媒游戏",
+    "159540": "信创",
+    "159998": "信息技术",
+    "515790": "光伏",
+    "515110": "其他主题",
+    "512710": "军工",
+    "516810": "农业",
+    "159992": "创新药",
+    "159870": "化工",
+    "513060": "医药医疗",
+    "512480": "半导体芯片",
+    "588020": "因子策略",
+    "560280": "基建",
+    "560700": "央企国企",
+    "159176": "家电",
+    "512100": "宽基中证1000",
+    "563300": "宽基中证2000",
+    "510500": "宽基中证500",
+    "159915": "宽基创业板",
+    "510300": "宽基大盘",
+    "588000": "宽基科创",
+    "512200": "房地产",
+    "516160": "新能源综合",
+    "515030": "新能源车",
+    "512400": "有色资源",
+    "562500": "机器人",
+    "159667": "机械制造",
+    "513330": "海外互联网",
+    "159792": "海外宽基",
+    "513180": "海外科技",
+    "159732": "消费综合",
+    "512580": "环保",
+    "561560": "电力",
+    "159755": "电池储能",
+    "512690": "白酒消费",
+    "159207": "红利",
+    "512880": "证券",
+    "515880": "通信5G",
+    "513140": "金融综合",
+    "159253": "银行",
+    "515170": "食品饮料",
+    "159834": "黄金"
+  },
+  "sector_merge_rules": {
+    "医疗健康": "医药医疗",
+    "医药健康": "医药医疗",
+    "宽基上证50": "宽基大盘",
+    "宽基深证100": "宽基大盘",
+    "宽基沪深300": "宽基大盘",
+    "宽基科创": "宽基科创",
+    "宽基科创50": "宽基科创",
+    "中概互联": "海外互联网",
+    "科技综合": "海外科技",
+    "海外指数": "海外宽基",
+    "ESG": "其他主题",
+    "区域主题": "其他主题",
+    "其他": "货币基金"
+  }
+}

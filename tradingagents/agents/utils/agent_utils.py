@@ -1318,31 +1318,34 @@ class Toolkit:
             result_data = []
 
             if is_china or is_hk:
-                # 中国A股和港股：使用社交媒体情绪分析
+                # 中国A股和港股：优先 WeStock 新闻/资金/南下持仓作为可验证情绪代理
                 logger.info(f"🇨🇳🇭🇰 [统一情绪工具] 处理中文市场情绪...")
 
                 try:
-                    # 可以集成微博、雪球、东方财富等中文社交媒体情绪
-                    # 目前使用基础的情绪分析
-                    sentiment_summary = f"""
+                    from tradingagents.dataflows.providers.westock_cli import build_sentiment_bundle
+
+                    hint = "HK" if is_hk else "CN"
+                    westock_bundle = build_sentiment_bundle(ticker, curr_date, market_hint=hint)
+                    if westock_bundle and len(westock_bundle.strip()) > 80:
+                        result_data.append(westock_bundle)
+                    else:
+                        sentiment_summary = f"""
 ## 中文市场情绪分析
 
 **股票**: {ticker} ({market_info['market_name']})
 **分析日期**: {curr_date}
 
 ### 市场情绪概况
-- 由于中文社交媒体情绪数据源暂未完全集成，当前提供基础分析
-- 建议关注雪球、东方财富、同花顺等平台的讨论热度
-- 港股市场还需关注香港本地财经媒体情绪
+- WeStock CLI 暂不可用或未返回数据，当前仅能提供基础框架
+- 建议本机安装 westock 后重试，或使用：`python scripts/stock_intel_cli.py sentiment {ticker}`
+- 也可关注雪球、东方财富、富途/老虎等平台讨论热度
 
 ### 情绪指标
-- 整体情绪: 中性
-- 讨论热度: 待分析
+- 整体情绪: 数据不足，暂标中性
+- 讨论热度: 待补充
 - 投资者信心: 待评估
-
-*注：完整的中文社交媒体情绪分析功能正在开发中*
 """
-                    result_data.append(sentiment_summary)
+                        result_data.append(sentiment_summary)
                 except Exception as e:
                     result_data.append(f"## 中文市场情绪\n获取失败: {e}")
 

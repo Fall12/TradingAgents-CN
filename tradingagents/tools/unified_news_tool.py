@@ -318,6 +318,17 @@ class UnifiedNewsAnalyzer:
         except Exception as e:
             logger.warning(f"[统一新闻工具] 数据库新闻获取失败: {e}")
 
+        # 优先级0.5: WeStock CLI（库无数据时的可靠补充）
+        try:
+            from tradingagents.dataflows.providers.westock_cli import build_news_bundle
+
+            westock_news = build_news_bundle(stock_code, max_news=max_news, market_hint="CN")
+            if westock_news and len(westock_news.strip()) > 80:
+                logger.info(f"[统一新闻工具] ✅ WeStock A股新闻获取成功: {len(westock_news)} 字符")
+                return self._format_news_result(westock_news, "WeStock资讯", model_info)
+        except Exception as e:
+            logger.warning(f"[统一新闻工具] WeStock A股新闻获取失败: {e}")
+
         # 优先级1: 东方财富实时新闻
         try:
             if hasattr(self.toolkit, 'get_realtime_stock_news'):
@@ -370,6 +381,26 @@ class UnifiedNewsAnalyzer:
         
         # 获取当前日期
         curr_date = datetime.now().strftime("%Y-%m-%d")
+
+        # 优先级0: WeStock CLI（本地可用时优先，覆盖港股新闻/公告/研报）
+        try:
+            from tradingagents.dataflows.providers.westock_cli import build_news_bundle
+
+            westock_news = build_news_bundle(stock_code, max_news=max_news, market_hint="HK")
+            if westock_news and len(westock_news.strip()) > 80:
+                logger.info(f"[统一新闻工具] ✅ WeStock 港股新闻获取成功: {len(westock_news)} 字符")
+                return self._format_news_result(westock_news, "WeStock港股资讯", model_info)
+        except Exception as e:
+            logger.warning(f"[统一新闻工具] WeStock 港股新闻获取失败: {e}")
+
+        # 优先级0.5: 数据库缓存
+        try:
+            db_news = self._get_news_from_database(stock_code, max_news)
+            if db_news:
+                logger.info(f"[统一新闻工具] ✅ 数据库港股新闻获取成功: {len(db_news)} 字符")
+                return self._format_news_result(db_news, "数据库缓存", model_info)
+        except Exception as e:
+            logger.warning(f"[统一新闻工具] 数据库港股新闻获取失败: {e}")
         
         # 优先级1: Google新闻（港股搜索）
         try:

@@ -60,24 +60,31 @@ st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
     
-    /* 隐藏Streamlit顶部工具栏和Deploy按钮 - 多种选择器确保兼容性 */
-    .stAppToolbar {
-        display: none !important;
+    /* stToolbar承载窄视口下的侧边栏展开按钮(stExpandSidebarButton), 不能整体隐藏, 仅做透明 */
+    .stAppToolbar,
+    [data-testid="stToolbar"],
+    div[data-testid="stToolbar"] {
+        background: transparent !important;
+        box-shadow: none !important;
+        border: none !important;
+        backdrop-filter: none !important;
     }
     
+    /* header只隐藏右侧工具区, 保留左侧侧边栏展开/收起按钮 */
     header[data-testid="stHeader"] {
-        display: none !important;
+        background: transparent !important;
+        backdrop-filter: none !important;
+        box-shadow: none !important;
     }
-    
+
+    .stApp > header {
+        background: transparent !important;
+    }
+
     .stDeployButton {
         display: none !important;
     }
-    
-    /* 新版本Streamlit的Deploy按钮选择器 */
-    [data-testid="stToolbar"] {
-        display: none !important;
-    }
-    
+
     [data-testid="stDecoration"] {
         display: none !important;
     }
@@ -86,21 +93,20 @@ st.markdown("""
         display: none !important;
     }
     
-    /* 隐藏整个顶部区域 */
-    .stApp > header {
-        display: none !important;
-    }
-    
-    .stApp > div[data-testid="stToolbar"] {
-        display: none !important;
-    }
-    
-    /* 隐藏主菜单按钮 */
+    /* 隐藏主菜单按钮(不影响侧边栏展开控制) */
+    [data-testid="stMainMenu"],
     #MainMenu {
         visibility: hidden !important;
         display: none !important;
     }
     
+    /* 隐藏toolbar内非侧边栏控制的所有按钮(Deploy/分享等) */
+    [data-testid="stToolbar"] button:not([data-testid="stExpandSidebarButton"]):not([data-testid="stBaseButton-headerNoPadding"]):not([data-testid="stBaseButton-header"]),
+    [data-testid="stDeployButton"] {
+        display: none !important;
+        visibility: hidden !important;
+    }
+
     /* 隐藏页脚 */
     footer {
         visibility: hidden !important;
@@ -112,14 +118,9 @@ st.markdown("""
         display: none !important;
     }
     
-    /* 隐藏所有可能的工具栏元素 */
-    div[data-testid="stToolbar"] {
-        display: none !important;
-    }
-    
-    /* 隐藏右上角的所有按钮 */
+    /* 顶部留出侧边栏控制按钮的高度, 避免遮挡内容 */
     .stApp > div > div > div > div > section > div {
-        padding-top: 0 !important;
+        padding-top: 2.5rem !important;
     }
     
     /* 全局样式 */
@@ -600,22 +601,24 @@ def main():
     # 检查前端缓存恢复
     check_frontend_auth_cache()
 
-    # 检查用户认证状态
-    if not auth_manager.is_authenticated():
+    # 检查用户认证状态 (板块趋势页免登录: 未登录且当前选中该页时跳过登录墙)
+    _sector_first = (not auth_manager.is_authenticated()
+                     and st.session_state.get('nav_page', '📊 板块趋势') == '📊 板块趋势')
+    if not auth_manager.is_authenticated() and not _sector_first:
         # 最后一次尝试从session state恢复认证状态
-        if (st.session_state.get('authenticated', False) and 
-            st.session_state.get('user_info') and 
+        if (st.session_state.get('authenticated', False) and
+            st.session_state.get('user_info') and
             st.session_state.get('login_time')):
             logger.info("🔄 从session state恢复认证状态")
             try:
                 auth_manager.login_user(
-                    st.session_state.user_info, 
+                    st.session_state.user_info,
                     st.session_state.login_time
                 )
                 logger.info(f"✅ 成功从session state恢复用户 {st.session_state.user_info.get('username', 'Unknown')} 的认证状态")
             except Exception as e:
                 logger.warning(f"⚠️ 从session state恢复认证状态失败: {e}")
-        
+
         # 如果仍然未认证，显示登录页面
         if not auth_manager.is_authenticated():
             render_login_form()
@@ -624,32 +627,31 @@ def main():
     # 全局侧边栏CSS样式 - 确保所有页面一致
     st.markdown("""
     <style>
-    /* 统一侧边栏宽度为320px */
+    /* 统一侧边栏宽度为230px */
     section[data-testid="stSidebar"] {
-        width: 320px !important;
-        min-width: 320px !important;
-        max-width: 320px !important;
+        width: 230px !important;
+        min-width: 230px !important;
+        max-width: 230px !important;
     }
 
     /* 侧边栏内容容器 */
     section[data-testid="stSidebar"] > div {
-        width: 320px !important;
-        min-width: 320px !important;
-        max-width: 320px !important;
+        width: 230px !important;
+        min-width: 230px !important;
+        max-width: 230px !important;
     }
 
-    /* 主内容区域适配320px侧边栏 */
+    /* 主内容区域自适应, 侧边栏收起时自动全宽 */
     .main .block-container {
-        width: calc(100vw - 336px) !important;
-        max-width: calc(100vw - 336px) !important;
+        max-width: 100% !important;
     }
 
-    /* 选择框宽度适配320px侧边栏 */
+    /* 选择框宽度适配230px侧边栏 */
     section[data-testid="stSidebar"] .stSelectbox > div > div,
     section[data-testid="stSidebar"] .stSelectbox [data-baseweb="select"] {
         width: 100% !important;
-        min-width: 260px !important;
-        max-width: 280px !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
     }
 
     /* 侧边栏标题样式 */
@@ -661,31 +663,33 @@ def main():
         overflow-wrap: break-word !important;
     }
 
-    /* 隐藏侧边栏的隐藏按钮 - 更全面的选择器 */
-    button[kind="header"],
-    button[data-testid="collapsedControl"],
+    /* 隐藏顶部非侧边栏的杂项按钮(保留侧边栏展开/收起控制) */
     .css-1d391kg,
     .css-1rs6os,
-    .css-17eq0hr,
-    .css-1lcbmhc,
-    .css-1y4p8pa,
-    button[aria-label="Close sidebar"],
-    button[aria-label="Open sidebar"],
-    [data-testid="collapsedControl"],
-    .stSidebar button[kind="header"] {
+    .css-17eq0hr {
+        display: none !important;
+        visibility: hidden !important;
+    }
+
+    /* 侧边栏宽视口下禁止收起: 隐藏sidebar内部收起箭头 */
+    section[data-testid="stSidebar"] button[kind="header"],
+    [data-testid="stSidebarCollapseButton"],
+    button[aria-label="Close sidebar"] {
         display: none !important;
         visibility: hidden !important;
         opacity: 0 !important;
         pointer-events: none !important;
     }
 
-    /* 隐藏侧边栏顶部区域的特定按钮（更精确的选择器，避免影响表单按钮） */
-    section[data-testid="stSidebar"] > div:first-child > button[kind="header"],
-    section[data-testid="stSidebar"] > div:first-child > div > button[kind="header"],
-    section[data-testid="stSidebar"] .css-1lcbmhc > button[kind="header"],
-    section[data-testid="stSidebar"] .css-1y4p8pa > button[kind="header"] {
-        display: none !important;
-        visibility: hidden !important;
+    /* 窄视口下Streamlit自动收起侧边栏, 顶部的展开按钮必须可见 */
+    [data-testid="stExpandSidebarButton"],
+    button[data-testid="stExpandSidebarButton"],
+    [data-testid="stSidebarCollapsedControl"],
+    button[aria-label="Open sidebar"] {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
     }
 
     /* 调整侧边栏内容的padding */
@@ -731,6 +735,18 @@ def main():
     /* 调整侧边栏分隔线的间距 */
     section[data-testid="stSidebar"] hr {
         margin: 0.8rem 0 !important;
+    }
+
+    /* 功能导航按钮: 紧凑瘦身(两列短标签) */
+    section[data-testid="stSidebar"] button[kind="primary"],
+    section[data-testid="stSidebar"] button[kind="secondary"],
+    section[data-testid="stSidebar"] [data-testid="stBaseButton-primary"] button,
+    section[data-testid="stSidebar"] [data-testid="stBaseButton-secondary"] button {
+        padding-top: 0.12rem !important;
+        padding-bottom: 0.12rem !important;
+        min-height: 1.75rem !important;
+        font-size: 0.82rem !important;
+        line-height: 1.2 !important;
     }
 
     /* 简化功能选择区域样式 */
@@ -895,6 +911,7 @@ def main():
     st.sidebar.markdown("---")
     
     # 页面导航 - 在标题下方显示用户信息
+    _anon = not auth_manager.is_authenticated()
     render_sidebar_user_info()
 
     # 在用户信息和功能导航之间添加分隔线
@@ -903,22 +920,33 @@ def main():
     # 添加功能切换标题
     st.sidebar.markdown("**🎯 功能导航**")
 
-    page = st.sidebar.selectbox(
-        "切换功能模块",
-        ["📊 股票分析", "⚙️ 配置管理", "💾 缓存管理", "💰 Token统计", "📋 操作日志", "📈 分析结果", "🔧 系统状态"],
-        label_visibility="collapsed"
-    )
+    # 按钮组导航: 单列全宽, 选中项高亮
+    nav_pages = ["📊 板块趋势", "📊 股票分析", "⚙️ 配置管理", "💾 缓存管理",
+                 "💰 Token统计", "📋 操作日志", "📈 分析结果", "🔧 系统状态"]
+    default_page = "📊 板块趋势" if _anon else "📊 股票分析"
+    if "nav_page" not in st.session_state:
+        st.session_state["nav_page"] = default_page
+    if st.session_state["nav_page"] not in nav_pages:
+        st.session_state["nav_page"] = default_page
+
+    for pg in nav_pages:
+        st.sidebar.button(pg, key=f"nav_{pg}",
+                          type="primary" if st.session_state["nav_page"] == pg else "secondary",
+                          on_click=lambda p=pg: st.session_state.update(nav_page=p))
+
+    page = st.session_state["nav_page"]
     
-    # 记录页面访问活动
+    # 记录页面访问活动 (未登录的板块趋势免登录访问跳过)
     try:
-        user_activity_logger.log_page_visit(
-            page_name=page,
-            page_params={
-                "page_url": f"/app?page={page.split(' ')[1] if ' ' in page else page}",
-                "page_type": "main_navigation",
-                "access_method": "sidebar_selectbox"
-            }
-        )
+        if not _anon or page != "📊 板块趋势":
+            user_activity_logger.log_page_visit(
+                page_name=page,
+                page_params={
+                    "page_url": f"/app?page={page.split(' ')[1] if ' ' in page else page}",
+                    "page_type": "main_navigation",
+                    "access_method": "sidebar_selectbox"
+                }
+            )
     except Exception as e:
         logger.warning(f"记录页面访问活动失败: {e}")
 
@@ -926,7 +954,29 @@ def main():
     st.sidebar.markdown("---")
 
     # 根据选择的页面渲染不同内容
-    if page == "⚙️ 配置管理":
+    if page == "📊 板块趋势":
+        # 板块趋势页免登录: 未认证时自动选中并渲染, 已认证走权限检查
+        if not auth_manager.is_authenticated():
+            try:
+                from modules.sector_trend import render_sector_trend
+                render_sector_trend()
+            except Exception as e:
+                import traceback
+                st.error(f"板块趋势模块加载失败: {e}")
+                st.code(traceback.format_exc())
+            return
+        # 检查分析权限
+        if not require_permission("analysis"):
+            return
+        try:
+            from modules.sector_trend import render_sector_trend
+            render_sector_trend()
+        except Exception as e:
+            import traceback
+            st.error(f"板块趋势模块加载失败: {e}")
+            st.code(traceback.format_exc())
+        return
+    elif page == "⚙️ 配置管理":
         # 检查配置权限
         if not require_permission("config"):
             return

@@ -178,11 +178,11 @@ export function validateStockCode(
 export function getStockCodeFormatHelp(market: 'A股' | '美股' | '港股'): string {
   switch (market) {
     case 'A股':
-      return '6位数字，如：000001（平安银行）、600519（贵州茅台）'
+      return '可输入代码或中文名，如下拉选：000001 / 平安银行'
     case '美股':
-      return '1-5个字母，如：AAPL（苹果）、TSLA（特斯拉）'
+      return '可输入代码或名称，如下拉选：AAPL / Apple'
     case '港股':
-      return '1-5位数字，如：700（腾讯）、9988（阿里巴巴）'
+      return '可输入代码或中文名，如下拉选：00700 / 腾讯'
     default:
       return ''
   }

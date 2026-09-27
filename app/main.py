@@ -69,6 +69,7 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from app.services.quotes_ingestion_service import QuotesIngestionService
 from app.routers import paper as paper_router
+from app.routers import etf_strategy as etf_strategy_router
 
 
 def get_version() -> str:
@@ -728,6 +729,7 @@ app.include_router(financial_data.router, tags=["financial-data"])
 app.include_router(news_data.router, tags=["news-data"])
 app.include_router(social_media.router, tags=["social-media"])
 app.include_router(internal_messages.router, tags=["internal-messages"])
+app.include_router(etf_strategy_router.router, tags=["etf-strategy"])
 
 
 @app.get("/")

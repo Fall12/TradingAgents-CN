@@ -3617,22 +3617,33 @@ class ConfigService:
                 "Authorization": f"Bearer {api_key}"
             }
 
+            # V4/Flash 等推理模型会先写 reasoning_content；max_tokens 过小会只出思维链、content 为空
+            is_reasoning_like = any(
+                x in (model_name or "").lower()
+                for x in ("reasoner", "v4", "flash", "r1")
+            )
             data = {
                 "model": model_name,
                 "messages": [
                     {"role": "user", "content": "你好，请简单介绍一下你自己。"}
                 ],
-                "max_tokens": 50,
+                "max_tokens": 256 if is_reasoning_like else 50,
                 "temperature": 0.1
             }
 
-            response = requests.post(url, json=data, headers=headers, timeout=10)
+            response = requests.post(url, json=data, headers=headers, timeout=30)
 
             if response.status_code == 200:
                 result = response.json()
                 if "choices" in result and len(result["choices"]) > 0:
-                    content = result["choices"][0]["message"]["content"]
-                    if content and len(content.strip()) > 0:
+                    message = result["choices"][0].get("message") or {}
+                    content = (message.get("content") or "").strip()
+                    reasoning = (
+                        message.get("reasoning_content")
+                        or message.get("reasoning")
+                        or ""
+                    ).strip()
+                    if content or reasoning:
                         return {
                             "success": True,
                             "message": f"{display_name} API连接测试成功"
@@ -3648,9 +3659,17 @@ class ConfigService:
                         "message": f"{display_name} API响应格式异常"
                     }
             else:
+                err_detail = ""
+                try:
+                    err_detail = (response.json().get("error") or {}).get("message") or ""
+                except Exception:
+                    err_detail = (response.text or "")[:200]
                 return {
                     "success": False,
-                    "message": f"{display_name} API测试失败: HTTP {response.status_code}"
+                    "message": (
+                        f"{display_name} API测试失败: HTTP {response.status_code}"
+                        + (f" - {err_detail}" if err_detail else "")
+                    )
                 }
 
         except Exception as e:
