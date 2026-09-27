@@ -513,6 +513,7 @@ import { favoritesApi } from '@/api/favorites'
 import { tagsApi } from '@/api/tags'
 import { stockSyncApi } from '@/api/stockSync'
 import { normalizeMarketForAnalysis } from '@/utils/market'
+import { formatDate as formatDateOnly } from '@/utils/datetime'
 import { ApiClient } from '@/api/request'
 
 import type { FavoriteItem } from '@/api/favorites'
@@ -1183,7 +1184,7 @@ const formatPercent = (value: any): string => {
 }
 
 const formatDate = (dateStr: string) => {
-  return new Date(dateStr).toLocaleDateString('zh-CN')
+  return formatDateOnly(dateStr)
 }
 
 // 生命周期

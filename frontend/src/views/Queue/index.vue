@@ -191,6 +191,7 @@ import { analysisApi } from '@/api/analysis'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { marked } from 'marked'
+import { formatDateTime } from '@/utils/datetime'
 
 // 简单Markdown渲染，与单股分析保持一致风格
 marked.setOptions({ breaks: true, gfm: true })
@@ -417,7 +418,7 @@ const getProgressStatus = (status: string) => {
 }
 
 const formatTime = (time: string) => {
-  return new Date(time).toLocaleString('zh-CN')
+  return formatDateTime(time)
 }
 
 const handleSizeChange = (size: number) => {

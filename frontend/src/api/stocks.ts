@@ -104,7 +104,7 @@ export const stocksApi = {
    * @param limit 数据条数
    * @param adj 复权方式
    */
-  async getKline(symbol: string, period: KlineResponse['period'] = 'day', limit = 120, adj: KlineResponse['adj'] = 'none') {
+  async getKline(symbol: string, period: KlineResponse['period'] = 'day', limit = 66, adj: KlineResponse['adj'] = 'none') {
     return ApiClient.get<KlineResponse>(`/api/stocks/${symbol}/kline`, { period, limit, adj })
   },
 

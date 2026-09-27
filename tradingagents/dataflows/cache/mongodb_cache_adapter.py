@@ -32,14 +32,26 @@ class MongoDBCacheAdapter:
     def _init_mongodb_connection(self):
         """初始化MongoDB连接"""
         try:
-            from tradingagents.config.database_manager import get_mongodb_client
-            self.mongodb_client = get_mongodb_client()
-            if self.mongodb_client:
-                self.db = self.mongodb_client.get_database('tradingagents')
-                logger.debug("✅ MongoDB连接初始化成功")
+            import os
+            from tradingagents.config.database_manager import get_database_manager
+
+            mgr = get_database_manager()
+            # 优先用管理器已解析的库名（尊重 MONGODB_DATABASE 环境变量）
+            self.db = mgr.get_mongodb_db()
+            self.mongodb_client = mgr.get_mongodb_client()
+            if self.db is not None:
+                logger.info(f"✅ MongoDB缓存适配器连接成功: db={self.db.name}")
             else:
-                logger.warning("⚠️ MongoDB客户端不可用，回退到传统模式")
-                self.use_app_cache = False
+                # 兜底：直接按环境变量取库
+                client = mgr.get_mongodb_client()
+                if client:
+                    db_name = os.getenv("MONGODB_DATABASE") or os.getenv("MONGO_DB") or "tradingagentscn"
+                    self.mongodb_client = client
+                    self.db = client.get_database(db_name)
+                    logger.info(f"✅ MongoDB缓存适配器连接成功(fallback): db={db_name}")
+                else:
+                    logger.warning("⚠️ MongoDB客户端不可用，回退到传统模式")
+                    self.use_app_cache = False
         except Exception as e:
             logger.warning(f"⚠️ MongoDB连接初始化失败: {e}")
             self.use_app_cache = False
@@ -209,6 +221,45 @@ class MongoDBCacheAdapter:
                     return df
                 else:
                     logger.debug(f"⚠️ [MongoDB-{data_source}] 未找到{period}数据: {symbol}")
+
+            # 兜底：不限 data_source；日线兼容 period 缺失的增量写入
+            fallback: Dict[str, Any] = {
+                "$or": [{"symbol": code6}, {"code": code6}],
+            }
+            if period == "daily":
+                fallback["$and"] = [{
+                    "$or": [
+                        {"period": "daily"},
+                        {"period": {"$exists": False}},
+                        {"period": None},
+                        {"period": ""},
+                    ]
+                }]
+            else:
+                fallback["period"] = period
+            if start_date or end_date:
+                fallback["trade_date"] = {}
+                if start_date:
+                    fallback["trade_date"]["$gte"] = start_date
+                if end_date:
+                    fallback["trade_date"]["$lte"] = end_date
+            logger.info(f"🔄 [MongoDB] 优先级数据源无结果，兜底查询任意源: {symbol} period={period}")
+            data = list(collection.find(fallback, {"_id": 0}).sort("trade_date", 1))
+            if data:
+                df = pd.DataFrame(data)
+                # 多源同日去重：保留有 data_source 的，再按行序取最后一条
+                if "trade_date" in df.columns and len(df) > 1:
+                    if "data_source" in df.columns:
+                        df["_src_rank"] = df["data_source"].notna().astype(int)
+                        df = df.sort_values(["trade_date", "_src_rank"]).drop_duplicates(
+                            "trade_date", keep="last"
+                        ).drop(columns=["_src_rank"])
+                    else:
+                        df = df.drop_duplicates("trade_date", keep="last")
+                    df = df.sort_values("trade_date")
+                src = df["data_source"].iloc[-1] if "data_source" in df.columns and len(df) else "unknown"
+                logger.info(f"✅ [数据来源: MongoDB-{src}/fallback] {symbol}, {len(df)}条记录 (period={period})")
+                return df
 
             # 所有数据源都没有数据
             logger.warning(f"⚠️ [数据来源: MongoDB] 所有数据源({', '.join(priority_order)})都没有{period}数据: {symbol}，降级到其他数据源")

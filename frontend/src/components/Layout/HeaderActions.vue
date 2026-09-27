@@ -73,6 +73,7 @@ import {
   Bell,
   QuestionFilled
 } from '@element-plus/icons-vue'
+import { formatDateTime } from '@/utils/datetime'
 
 const appStore = useAppStore()
 const authStore = useAuthStore()
@@ -97,7 +98,7 @@ function onMarkRead(n: any) { notifStore.markRead(n.id) }
 function onMarkAllRead() { notifStore.markAllRead() }
 function typeLabel(t: string) { return t === 'analysis' ? '分析' : t === 'alert' ? '预警' : '系统' }
 function tagType(t: string) { return t === 'analysis' ? 'success' : t === 'alert' ? 'warning' : 'info' }
-function toLocal(iso: string) { try { return new Date(iso).toLocaleString() } catch { return iso } }
+function toLocal(iso: string) { return formatDateTime(iso) }
 function go(n: any) { if (n.link) window.open(n.link, '_blank') }
 
 onMounted(() => {

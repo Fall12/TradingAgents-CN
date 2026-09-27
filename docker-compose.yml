@@ -31,7 +31,15 @@ services:
       TRADINGAGENTS_LOG_DIR: "/app/logs"
       TRADINGAGENTS_LOG_FILE: "/app/logs/tradingagents.log"
       # Docker专用数据库配置
-      TRADINGAGENTS_MONGODB_URL: mongodb://admin:tradingagents123@mongodb:27017/tradingagents?authSource=admin
+      # 强制使用完整行情库（容器内主机名必须是 mongodb，不能是 localhost）
+      MONGODB_HOST: mongodb
+      MONGODB_DATABASE: tradingagentscn
+      MONGODB_DATABASE_NAME: tradingagentscn
+      MONGO_DB: tradingagentscn
+      MONGODB_URL: mongodb://tradingagents:tradingagents123@mongodb:27017/tradingagentscn?authSource=admin
+      MONGO_URI: mongodb://tradingagents:tradingagents123@mongodb:27017/tradingagentscn?authSource=admin
+      MONGODB_CONNECTION_STRING: mongodb://tradingagents:tradingagents123@mongodb:27017/tradingagentscn?authSource=admin
+      TRADINGAGENTS_MONGODB_URL: mongodb://admin:tradingagents123@mongodb:27017/tradingagentscn?authSource=admin
       TRADINGAGENTS_REDIS_URL: redis://:tradingagents123@redis:6379
       TRADINGAGENTS_CACHE_TYPE: redis
       # Docker环境标识

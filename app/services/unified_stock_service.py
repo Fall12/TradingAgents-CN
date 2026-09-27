@@ -272,7 +272,7 @@ class UnifiedStockService:
         collection_name = self.collection_map[market]["daily"]
         collection = self.db[collection_name]
         
-        query = {"code": code}
+        query: Dict = {"$or": [{"code": code}, {"symbol": code}]}
         if start_date or end_date:
             query["trade_date"] = {}
             if start_date:

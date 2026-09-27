@@ -120,7 +120,13 @@
             </div>
           </template>
           <div class="kline-container">
-            <v-chart class="k-chart" :option="kOption" autoresize />
+            <v-chart
+              ref="kChartRef"
+              class="k-chart"
+              :option="kOption"
+              autoresize
+              @datazoom="onKlineDataZoom"
+            />
             <div class="legend">当前周期：{{ period }} · 数据源：{{ klineSource || '-' }} · 最近：{{ lastKTime || '-' }} · 收：{{ fmtPrice(lastKClose) }}</div>
           </div>
         </el-card>
@@ -367,7 +373,7 @@ import { ApiClient } from '@/api/request'
 import { stockSyncApi } from '@/api/stockSync'
 import { clearAllCache } from '@/api/cache'
 import { use as echartsUse } from 'echarts/core'
-import { CandlestickChart } from 'echarts/charts'
+import { CandlestickChart, BarChart } from 'echarts/charts'
 
 import { GridComponent, TooltipComponent, DataZoomComponent, LegendComponent, TitleComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -376,7 +382,15 @@ import type { EChartsOption } from 'echarts'
 import { favoritesApi } from '@/api/favorites'
 
 
-echartsUse([CandlestickChart, GridComponent, TooltipComponent, DataZoomComponent, LegendComponent, TitleComponent, CanvasRenderer])
+echartsUse([CandlestickChart, BarChart, GridComponent, TooltipComponent, DataZoomComponent, LegendComponent, TitleComponent, CanvasRenderer])
+
+function fmtVolAxis(v: number): string {
+  const n = Number(v)
+  if (!Number.isFinite(n)) return ''
+  if (Math.abs(n) >= 1e8) return (n / 1e8).toFixed(1) + '亿'
+  if (Math.abs(n) >= 1e4) return (n / 1e4).toFixed(0) + '万'
+  return String(Math.round(n))
+}
 
 const route = useRoute()
 const router = useRouter()
@@ -409,43 +423,129 @@ const stockName = ref('')
 const market = ref('')
 const isFav = ref(false)
 
-// ECharts K线配置
+// ECharts K线配置（上K线下成交量，缩放联动）
 const kOption = ref<EChartsOption>({
-  grid: { left: 40, right: 20, top: 20, bottom: 40 },
+  animation: false,
+  axisPointer: { link: [{ xAxisIndex: 'all' }] },
+  grid: [
+    { left: 56, right: 20, top: 16, height: '58%' },
+    { left: 56, right: 20, top: '74%', height: '14%' }
+  ],
   tooltip: {
     trigger: 'axis',
-    axisPointer: { type: 'cross' }
+    axisPointer: { type: 'cross' },
+    formatter: (params: any) => {
+      const list = Array.isArray(params) ? params : [params]
+      if (!list.length) return ''
+      const axis = list[0].axisValueLabel || list[0].name || ''
+      const lines = [axis]
+      for (const p of list) {
+        if (p.seriesType === 'candlestick') {
+          const d = Array.isArray(p.data) ? p.data : (p.data?.value || [])
+          const [o, c, l, h] = d.length >= 5 ? d.slice(1, 5) : d
+          lines.push(`开 ${o}  收 ${c}  低 ${l}  高 ${h}`)
+        } else if (p.seriesName === '成交量') {
+          const raw = typeof p.data === 'object' && p.data != null && !Array.isArray(p.data)
+            ? Number(p.data.value)
+            : Number(Array.isArray(p.data) ? p.data[1] : p.data)
+          lines.push(`量 ${fmtVolAxis(raw)}`)
+        }
+      }
+      return lines.join('<br/>')
+    }
   },
-  xAxis: {
-    type: 'category',
-    data: [],
-    boundaryGap: true,
-    axisLine: { onZero: false }
-  },
-  yAxis: {
-    scale: true,
-    type: 'value'
-  },
+  xAxis: [
+    {
+      type: 'category',
+      data: [],
+      boundaryGap: true,
+      axisLine: { onZero: false },
+      axisLabel: { show: false },
+      axisTick: { show: false },
+      splitLine: { show: false }
+    },
+    {
+      type: 'category',
+      gridIndex: 1,
+      data: [],
+      boundaryGap: true,
+      axisLabel: { show: false },
+      axisTick: { show: false },
+      splitLine: { show: false }
+    }
+  ],
+  yAxis: [
+    { scale: true, type: 'value', splitNumber: 4 },
+    {
+      scale: true,
+      type: 'value',
+      gridIndex: 1,
+      splitNumber: 2,
+      axisLabel: { formatter: fmtVolAxis },
+      splitLine: { show: false }
+    }
+  ],
   dataZoom: [
-    { type: 'inside', start: 70, end: 100 },
-    { start: 70, end: 100 }
+    // 默认看全量；右端固定在最新，缩放时只动左端；同时作用于价格+成交量
+    { type: 'inside', xAxisIndex: [0, 1], start: 0, end: 100, zoomOnMouseWheel: true, moveOnMouseMove: true, moveOnMouseWheel: false },
+    { type: 'slider', xAxisIndex: [0, 1], start: 0, end: 100, height: 18, bottom: 8 }
   ],
   series: [
     {
       type: 'candlestick',
       name: 'K线',
       data: [],
+      xAxisIndex: 0,
+      yAxisIndex: 0,
       itemStyle: {
         color: '#ef4444',
         color0: '#16a34a',
         borderColor: '#ef4444',
         borderColor0: '#16a34a'
       }
+    },
+    {
+      type: 'bar',
+      name: '成交量',
+      data: [],
+      xAxisIndex: 1,
+      yAxisIndex: 1,
+      barMaxWidth: 10,
+      itemStyle: { color: '#94a3b8' }
     }
   ]
 })
 const lastKTime = ref<string | null>(null)
 const lastKClose = ref<number | null>(null)
+const kChartRef = ref<any>(null)
+let lockingZoom = false
+
+/** 缩放/拖动时把右端钉在最新，只允许调整可见历史长度 */
+function onKlineDataZoom() {
+  if (lockingZoom) return
+  try {
+    const chart = kChartRef.value?.chart || kChartRef.value?.getEchartsInstance?.() || kChartRef.value
+    if (!chart?.getOption) return
+    const dzList = (chart.getOption().dataZoom || []) as any[]
+    const dz = dzList[0] || {}
+    let start = Number(dz.start ?? 0)
+    let end = Number(dz.end ?? 100)
+    if (!Number.isFinite(start)) start = 0
+    if (!Number.isFinite(end)) end = 100
+    if (end >= 99.5) return
+    const span = Math.max(end - start, 8)
+    lockingZoom = true
+    chart.dispatchAction({
+      type: 'dataZoom',
+      start: Math.max(0, 100 - span),
+      end: 100
+    })
+  } catch (e) {
+    console.warn('锁定K线右端失败', e)
+  } finally {
+    setTimeout(() => { lockingZoom = false }, 0)
+  }
+}
 
 // 报价（初始化）
 const quote = reactive({
@@ -799,19 +899,35 @@ function periodLabelToParam(p: string): string {
   return '5m'
 }
 
+/** 默认回看：日线约半年；周线约2年；月线约9年（库内日线多从2017起，可看到约2018） */
+function defaultKlineLimit(periodParam: string): number {
+  switch (periodParam) {
+    case 'day':
+      return 120 // ≈半年交易日
+    case 'week':
+      return 104 // ≈2年
+    case 'month':
+      return 108 // ≈9年，覆盖到约2018
+    default:
+      return 90
+  }
+}
+
 // 当周期切换时刷新K线
 watch(period, () => { fetchKline() })
 
 async function fetchKline() {
   try {
     const param = periodLabelToParam(period.value)
-    const res = await stocksApi.getKline(code.value, param as any, 200, 'none')
+    const limit = defaultKlineLimit(param)
+    const res = await stocksApi.getKline(code.value, param as any, limit, 'none')
     const d: any = (res as any)?.data || {}
     klineSource.value = d.source
     const items: any[] = Array.isArray(d.items) ? d.items : []
 
     const category: string[] = []
     const values: number[][] = [] // [open, close, low, high]
+    const volumes: Array<{ value: number; itemStyle: { color: string } }> = []
 
     for (const it of items) {
       const t = String(it.time || it.trade_time || it.trade_date || '')
@@ -819,9 +935,14 @@ async function fetchKline() {
       const h = Number(it.high ?? NaN)
       const l = Number(it.low ?? NaN)
       const c = Number(it.close ?? NaN)
+      const v = Number(it.volume ?? it.vol ?? 0)
       if (!Number.isFinite(o) || !Number.isFinite(h) || !Number.isFinite(l) || !Number.isFinite(c) || !t) continue
       category.push(t)
       values.push([o, c, l, h])
+      volumes.push({
+        value: Number.isFinite(v) ? v : 0,
+        itemStyle: { color: c >= o ? '#ef4444' : '#16a34a' }
+      })
     }
 
     if (category.length) {
@@ -831,18 +952,52 @@ async function fetchKline() {
 
     kOption.value = {
       ...kOption.value,
-      xAxis: { type: 'category', data: category, boundaryGap: true, axisLine: { onZero: false } },
+      xAxis: [
+        {
+          type: 'category',
+          data: category,
+          boundaryGap: true,
+          axisLine: { onZero: false },
+          axisLabel: { show: false },
+          axisTick: { show: false },
+          splitLine: { show: false }
+        },
+        {
+          type: 'category',
+          gridIndex: 1,
+          data: category,
+          boundaryGap: true,
+          axisLabel: { show: false },
+          axisTick: { show: false },
+          splitLine: { show: false }
+        }
+      ],
+      // 每次刷新都回到「全量 + 右端最新」
+      dataZoom: [
+        { type: 'inside', xAxisIndex: [0, 1], start: 0, end: 100, zoomOnMouseWheel: true, moveOnMouseMove: true, moveOnMouseWheel: false },
+        { type: 'slider', xAxisIndex: [0, 1], start: 0, end: 100, height: 18, bottom: 8 }
+      ],
       series: [
         {
           type: 'candlestick',
           name: 'K线',
           data: values,
+          xAxisIndex: 0,
+          yAxisIndex: 0,
           itemStyle: {
             color: '#ef4444',
             color0: '#16a34a',
             borderColor: '#ef4444',
             borderColor0: '#16a34a'
           }
+        },
+        {
+          type: 'bar',
+          name: '成交量',
+          data: volumes,
+          xAxisIndex: 1,
+          yAxisIndex: 1,
+          barMaxWidth: 10
         }
       ]
     }
@@ -1248,7 +1403,7 @@ function exportReport() {
 
 .body { margin-top: 4px; }
 .card-hd { display: flex; align-items: center; justify-content: space-between; }
-.k-chart { height: 320px; }
+.k-chart { height: 420px; }
 .legend { margin-top: 8px; font-size: 12px; color: var(--el-text-color-secondary); }
 
 .news-card .news-list { display: flex; flex-direction: column; }

@@ -211,6 +211,7 @@ import {
 } from '@element-plus/icons-vue'
 import * as cacheApi from '@/api/cache'
 import type { CacheDetailItem, CacheStats } from '@/api/cache'
+import { formatDateTime } from '@/utils/datetime'
 
 type TagType = 'primary' | 'success' | 'warning' | 'info' | 'danger'
 
@@ -262,7 +263,7 @@ const formatSize = (bytes: number): string => {
 }
 
 const formatDate = (dateString: string): string => {
-  return new Date(dateString).toLocaleString('zh-CN')
+  return formatDateTime(dateString)
 }
 
 const getProgressColor = (percentage: number): string => {

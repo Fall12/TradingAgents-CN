@@ -55,10 +55,46 @@ export interface IndustriesResponse {
   total: number
 }
 
+export type StrategyMode = 'trend' | 'value'
+
+export interface StrategyScreenItem {
+  code: string
+  symbol?: string
+  name?: string
+  market?: string
+  close?: number
+  score?: number
+  mom_mid?: number
+  excess_20?: number
+  atr_pct?: number
+  hard_stop?: number
+  pe?: number
+  pb?: number
+  roe?: number
+  total_mv?: number
+  pct_chg?: number
+  industry?: string
+  mode?: StrategyMode
+}
+
+export interface StrategyScreenResp {
+  mode: StrategyMode
+  label: string
+  as_of?: string | null
+  market_ok?: boolean
+  market_note?: string
+  total: number
+  items: StrategyScreenItem[]
+}
+
 export const screeningApi = {
   run: (payload: ScreeningRunReq, options?: { timeout?: number }) =>
     ApiClient.post<ScreeningRunResp>('/api/screening/run', payload, { timeout: options?.timeout ?? 120000 }),
   getFields: () => ApiClient.get<FieldConfigResponse>('/api/screening/fields'),
-  getIndustries: () => ApiClient.get<IndustriesResponse>('/api/screening/industries')
+  getIndustries: () => ApiClient.get<IndustriesResponse>('/api/screening/industries'),
+  strategyTrend: (limit = 20, options?: { timeout?: number }) =>
+    ApiClient.post<StrategyScreenResp>('/api/screening/strategy/trend', { limit }, { timeout: options?.timeout ?? 180000 }),
+  strategyValue: (limit = 20, options?: { timeout?: number }) =>
+    ApiClient.post<StrategyScreenResp>('/api/screening/strategy/value', { limit }, { timeout: options?.timeout ?? 120000 }),
 }
 

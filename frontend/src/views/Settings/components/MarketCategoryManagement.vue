@@ -84,6 +84,7 @@ import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { configApi, type MarketCategory, type DataSourceGrouping } from '@/api/config'
 import MarketCategoryDialog from './MarketCategoryDialog.vue'
+import { formatDateTime } from '@/utils/datetime'
 
 // Refs
 const loading = ref(false)
@@ -102,7 +103,7 @@ const getDataSourceCount = computed(() => {
 // 格式化日期
 const formatDate = (dateStr?: string) => {
   if (!dateStr) return '-'
-  return new Date(dateStr).toLocaleString('zh-CN')
+  return formatDateTime(dateStr)
 }
 
 // 加载数据

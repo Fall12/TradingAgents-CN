@@ -497,35 +497,88 @@ async def get_kline(
     today_str_yyyymmdd = now.strftime("%Y%m%d")  # 格式：20251028（用于查询）
     today_str_formatted = now.strftime("%Y-%m-%d")  # 格式：2025-10-28（用于返回）
 
-    # 1. 优先从 MongoDB 缓存获取
-    try:
-        from tradingagents.dataflows.cache.mongodb_cache_adapter import get_mongodb_cache_adapter
-        adapter = get_mongodb_cache_adapter()
+    # 周/月线：用日线现场聚合（库内无周/月周期），缓存 1 天
+    if period in ("week", "month"):
+        try:
+            from app.services.kline_resample import (
+                cache_key,
+                daily_lookback_days,
+                get_cached_agg,
+                resample_ohlc,
+                set_cached_agg,
+            )
+            from tradingagents.dataflows.cache.mongodb_cache_adapter import get_mongodb_cache_adapter
 
-        # 计算日期范围
-        end_date = now.strftime("%Y-%m-%d")
-        start_date = (now - timedelta(days=limit * 2)).strftime("%Y-%m-%d")
+            adapter = get_mongodb_cache_adapter()
+            lookback = daily_lookback_days(period, limit)  # type: ignore[arg-type]
+            end_date = now.strftime("%Y-%m-%d")
+            start_date = (now - timedelta(days=lookback)).strftime("%Y-%m-%d")
+            df_daily = adapter.get_historical_data(code_padded, start_date, end_date, period="daily")
 
-        logger.info(f"🔍 尝试从 MongoDB 获取 K 线数据: {code_padded}, period={period} (MongoDB: {mongodb_period}), limit={limit}")
-        df = adapter.get_historical_data(code_padded, start_date, end_date, period=mongodb_period)
+            daily_items: list = []
+            as_of = ""
+            if df_daily is not None and not df_daily.empty:
+                for _, row in df_daily.iterrows():
+                    t = str(row.get("trade_date", row.get("date", "")))[:10]
+                    daily_items.append({
+                        "time": t,
+                        "open": float(row.get("open", 0) or 0),
+                        "high": float(row.get("high", 0) or 0),
+                        "low": float(row.get("low", 0) or 0),
+                        "close": float(row.get("close", 0) or 0),
+                        "volume": float(row.get("volume", row.get("vol", 0)) or 0),
+                        "amount": float(row.get("amount", 0) or 0),
+                    })
+                as_of = str(df_daily["trade_date"].iloc[-1])[:10] if "trade_date" in df_daily.columns else daily_items[-1]["time"]
 
-        if df is not None and not df.empty:
-            # 转换 DataFrame 为列表格式
-            items = []
-            for _, row in df.tail(limit).iterrows():
-                items.append({
-                    "time": row.get("trade_date", row.get("date", "")),  # 前端期望 time 字段
-                    "open": float(row.get("open", 0)),
-                    "high": float(row.get("high", 0)),
-                    "low": float(row.get("low", 0)),
-                    "close": float(row.get("close", 0)),
-                    "volume": float(row.get("volume", row.get("vol", 0))),
-                    "amount": float(row.get("amount", 0)) if "amount" in row else None,
-                })
-            source = "mongodb"
-            logger.info(f"✅ 从 MongoDB 获取到 {len(items)} 条 K 线数据")
-    except Exception as e:
-        logger.warning(f"⚠️ MongoDB 获取 K 线失败: {e}")
+            db = get_mongo_db()
+            key = cache_key("CN", code_padded, period, limit)
+            cached = await get_cached_agg(db, key, as_of=as_of, now=now)
+            if cached:
+                items = cached[-limit:] if len(cached) > limit else cached
+                source = "mongodb_resample_cache"
+                logger.info(f"✅ 周/月线命中缓存: {code_padded} {period} n={len(items)}")
+            elif daily_items:
+                agg = resample_ohlc(daily_items, period)  # type: ignore[arg-type]
+                items = agg[-limit:] if len(agg) > limit else agg
+                source = "mongodb_resample"
+                await set_cached_agg(db, key, as_of=as_of, items=agg, now=now)
+                logger.info(f"✅ 日线聚合{period}: {code_padded} daily={len(daily_items)} -> {len(items)}")
+            else:
+                logger.warning(f"⚠️ 无日线可聚合周/月: {code_padded}")
+        except Exception as e:
+            logger.warning(f"⚠️ 日线聚合周/月失败: {e}", exc_info=True)
+
+    # 1. 优先从 MongoDB 缓存获取（日线，或库内已有周/月）
+    if not items:
+        try:
+            from tradingagents.dataflows.cache.mongodb_cache_adapter import get_mongodb_cache_adapter
+            adapter = get_mongodb_cache_adapter()
+
+            # 计算日期范围（日线：多留余量）
+            end_date = now.strftime("%Y-%m-%d")
+            start_date = (now - timedelta(days=max(limit * 2, 400))).strftime("%Y-%m-%d")
+
+            logger.info(f"🔍 尝试从 MongoDB 获取 K 线数据: {code_padded}, period={period} (MongoDB: {mongodb_period}), limit={limit}")
+            df = adapter.get_historical_data(code_padded, start_date, end_date, period=mongodb_period)
+
+            if df is not None and not df.empty:
+                # 转换 DataFrame 为列表格式
+                items = []
+                for _, row in df.tail(limit).iterrows():
+                    items.append({
+                        "time": row.get("trade_date", row.get("date", "")),  # 前端期望 time 字段
+                        "open": float(row.get("open", 0)),
+                        "high": float(row.get("high", 0)),
+                        "low": float(row.get("low", 0)),
+                        "close": float(row.get("close", 0)),
+                        "volume": float(row.get("volume", row.get("vol", 0))),
+                        "amount": float(row.get("amount", 0)) if "amount" in row else None,
+                    })
+                source = "mongodb"
+                logger.info(f"✅ 从 MongoDB 获取到 {len(items)} 条 K 线数据")
+        except Exception as e:
+            logger.warning(f"⚠️ MongoDB 获取 K 线失败: {e}")
 
     # 2. 如果 MongoDB 没有数据，降级到外部 API（带超时保护）
     if not items:

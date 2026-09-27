@@ -268,6 +268,7 @@ import {
   Search
 } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
+import { formatDateTime as formatDateTimeUtil } from '@/utils/datetime'
 
 type TokenRecord = {
   timestamp: string
@@ -341,7 +342,7 @@ const getChangeClass = (change: number): string => {
 }
 
 const formatDateTime = (timestamp: string): string => {
-  return new Date(timestamp).toLocaleString('zh-CN')
+  return formatDateTimeUtil(timestamp)
 }
 
 const getProviderName = (provider: string): string => {

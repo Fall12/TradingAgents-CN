@@ -269,8 +269,50 @@ async def validate_conditions(conditions: List[ScreeningCondition], user: dict =
         logger.error(f"[screening] 验证条件失败: {e}")
         raise HTTPException(status_code=500, detail=f"验证条件失败: {str(e)}")
 
-# 重复定义的旧端点移除（保留带日志的版本）
 
+class StrategyScreenRequest(BaseModel):
+    limit: int = Field(20, ge=1, le=100, description="返回数量（默认 Top20）")
+
+
+@router.post("/strategy/trend")
+async def strategy_trend_screen(
+    req: StrategyScreenRequest = StrategyScreenRequest(),
+    user: dict = Depends(get_current_user),
+):
+    """趋势交易选股（S4 低波动量）"""
+    try:
+        from app.core.database import get_mongo_db_sync
+        from app.services.strategy_screening_service import get_strategy_screening_service
+
+        db = get_mongo_db_sync()
+        svc_strategy = get_strategy_screening_service(db)
+        result = await svc_strategy.scan_trend(limit=req.limit)
+        return result
+    except Exception as e:
+        logger.error(f"[screening] 趋势选股失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"趋势选股失败: {str(e)}")
+
+
+@router.post("/strategy/value")
+async def strategy_value_screen(
+    req: StrategyScreenRequest = StrategyScreenRequest(),
+    user: dict = Depends(get_current_user),
+):
+    """价值交易选股（PE/PB/ROE）"""
+    try:
+        from app.core.database import get_mongo_db_sync
+        from app.services.strategy_screening_service import get_strategy_screening_service
+
+        db = get_mongo_db_sync()
+        svc_strategy = get_strategy_screening_service(db)
+        result = await svc_strategy.scan_value(limit=req.limit)
+        return result
+    except Exception as e:
+        logger.error(f"[screening] 价值选股失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"价值选股失败: {str(e)}")
+
+
+# 重复定义的旧端点移除（保留带日志的版本）
 
 @router.get("/industries")
 async def get_industries(user: dict = Depends(get_current_user)):

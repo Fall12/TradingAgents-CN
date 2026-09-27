@@ -120,6 +120,7 @@ import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Clock, Refresh, SuccessFilled, CircleCloseFilled, Warning } from '@element-plus/icons-vue'
 import { getSyncHistory, type SyncStatus } from '@/api/sync'
+import { formatDateTime } from '@/utils/datetime'
 
 type TagType = 'primary' | 'success' | 'warning' | 'info' | 'danger'
 
@@ -251,27 +252,7 @@ const getTimelineIcon = (status: string) => {
 // 格式化时间
 const formatTime = (timeStr?: string) => {
   if (!timeStr) return ''
-  
-  const date = new Date(timeStr)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  
-  // 如果是今天
-  if (diff < 24 * 60 * 60 * 1000) {
-    return date.toLocaleTimeString('zh-CN', { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      second: '2-digit'
-    })
-  }
-  
-  // 如果是昨天或更早
-  return date.toLocaleString('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
+  return formatDateTime(timeStr)
 }
 
 // 计算持续时间

@@ -32,10 +32,14 @@
       <template #title>任务中心</template>
     </el-menu-item>
 
-    <el-menu-item index="/screening">
-      <el-icon><Search /></el-icon>
-      <template #title>股票筛选</template>
-    </el-menu-item>
+    <el-sub-menu index="/screening">
+      <template #title>
+        <el-icon><Search /></el-icon>
+        <span>股票筛选</span>
+      </template>
+      <el-menu-item index="/screening/strategy">策略选股</el-menu-item>
+      <el-menu-item index="/screening/condition">条件筛选</el-menu-item>
+    </el-sub-menu>
 
     <el-menu-item index="/favorites">
       <el-icon><Star /></el-icon>

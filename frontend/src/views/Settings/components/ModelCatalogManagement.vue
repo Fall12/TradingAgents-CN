@@ -382,6 +382,7 @@ import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Refresh, Document } from '@element-plus/icons-vue'
 import { configApi, type FetchProviderModelsRequest, type LLMProvider } from '@/api/config'
+import { formatDateTime } from '@/utils/datetime'
 
 // 数据
 const loading = ref(false)
@@ -887,7 +888,7 @@ const handleSave = async () => {
 
 const formatDate = (date: string) => {
   if (!date) return '-'
-  return new Date(date).toLocaleString('zh-CN')
+  return formatDateTime(date)
 }
 
 onMounted(() => {

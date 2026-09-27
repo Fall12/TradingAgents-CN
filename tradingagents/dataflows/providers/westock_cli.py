@@ -12,11 +12,168 @@ import os
 import re
 import shutil
 import subprocess
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
 _DEFAULT_TIMEOUT = 25
+_SCREEN_TIMEOUT = 60
+_KLINE_TIMEOUT = 90
+
+
+def parse_markdown_tables(text: str) -> List[Dict[str, str]]:
+    """解析 westock 输出中的 markdown 表格，合并多表行。"""
+    rows: List[Dict[str, str]] = []
+    headers: Optional[List[str]] = None
+    for line in (text or "").splitlines():
+        line = line.strip()
+        if not line.startswith("|"):
+            continue
+        cols = [c.strip() for c in line.strip("|").split("|")]
+        if not cols:
+            continue
+        # 分隔行
+        if all(set(c) <= {"-", ":", " "} for c in cols):
+            continue
+        lower0 = (cols[0] or "").lower()
+        if headers is None or lower0 in ("code", "date", "enddate"):
+            # 新表头（或首表头）
+            if lower0 in ("code", "date", "enddate") or headers is None:
+                headers = cols
+            continue
+        if not headers or len(cols) < 1:
+            continue
+        # 对齐列数
+        while len(cols) < len(headers):
+            cols.append("")
+        item = {headers[i]: cols[i] for i in range(len(headers))}
+        rows.append(item)
+    return rows
+
+
+def from_westock_code(wcode: str) -> str:
+    """sh600519 / sz000001 -> 600519 / 000001"""
+    s = (wcode or "").strip().lower()
+    if s.startswith(("sh", "sz", "bj", "hk", "us")) and len(s) > 2:
+        return s[2:]
+    return s
+
+
+def screen_by_condition(
+    expression: str,
+    *,
+    limit: int = 100,
+    orderby: str = "",
+    desc: bool = True,
+    market: str = "hs",
+) -> List[Dict[str, str]]:
+    """条件选股，返回表格行字典列表。"""
+    args = [
+        "screen", "condition",
+        "--expression", expression,
+        "--limit", str(int(limit)),
+        "--market", market,
+    ]
+    if orderby:
+        args.extend(["--orderby", orderby])
+        args.append("--desc" if desc else "--asc")
+    ok, out = run_westock(args, timeout=_SCREEN_TIMEOUT)
+    if not ok or not out:
+        logger.warning(f"[westock] condition 选股失败: {out[:200] if out else ''}")
+        return []
+    return parse_markdown_tables(out)
+
+
+def screen_by_strategy(strategy_type: str, limit: int = 100) -> List[Dict[str, str]]:
+    """策略选股，返回含 code/name 的行。"""
+    args = [
+        "screen", "strategy",
+        "--type", strategy_type,
+        "--limit", str(int(limit)),
+    ]
+    ok, out = run_westock(args, timeout=_SCREEN_TIMEOUT)
+    if not ok or not out:
+        return []
+    return parse_markdown_tables(out)
+
+
+def fetch_daily_klines(
+    codes: List[str],
+    *,
+    limit: int = 280,
+    fq: str = "qfq",
+) -> Dict[str, List[Dict]]:
+    """
+    批量拉取日K。codes 可为 600519 或 sh600519。
+    返回 {纯数字代码: [{trade_date, open, high, low, close, volume, amount}, ...]} 升序。
+    """
+    if not codes:
+        return {}
+
+    wcodes = []
+    for c in codes:
+        wc = to_westock_code(str(c), "CN")
+        if wc and wc not in wcodes:
+            wcodes.append(wc)
+
+    result: Dict[str, List[Dict]] = {}
+    batch_size = 10
+    for i in range(0, len(wcodes), batch_size):
+        batch = wcodes[i:i + batch_size]
+        joined = ",".join(batch)
+        ok, out = run_westock(
+            ["kline", joined, "--period", "day", "--limit", str(int(limit)), "--fq", fq],
+            timeout=_KLINE_TIMEOUT,
+        )
+        if not ok or not out:
+            logger.warning(f"[westock] kline 批次失败 ({len(batch)}只): {out[:160] if out else ''}")
+            # 限流时稍等再试一次
+            if out and ("频繁" in out or "rate" in out.lower()):
+                import time
+                time.sleep(1.5)
+                ok, out = run_westock(
+                    ["kline", joined, "--period", "day", "--limit", str(int(limit)), "--fq", fq],
+                    timeout=_KLINE_TIMEOUT,
+                )
+            if not ok or not out:
+                continue
+        rows = parse_markdown_tables(out)
+        # 单票输出没有 code 列；批量才有
+        has_code_col = any((r.get("code") or "").strip() for r in rows[:3])
+        fallback_code = from_westock_code(batch[0]) if len(batch) == 1 else ""
+
+        for row in rows:
+            wcode = (row.get("code") or "").lower().strip()
+            if not wcode:
+                if has_code_col or not fallback_code:
+                    continue
+                pure = fallback_code
+            else:
+                pure = from_westock_code(wcode)
+            try:
+                bar = {
+                    "trade_date": row.get("date") or row.get("Date") or "",
+                    "open": float(row.get("open") or 0),
+                    "high": float(row.get("high") or 0),
+                    "low": float(row.get("low") or 0),
+                    "close": float(row.get("last") or row.get("close") or 0),
+                    "volume": float(row.get("volume") or 0),
+                    "amount": float(row.get("amount") or 0),
+                }
+            except (TypeError, ValueError):
+                continue
+            if not bar["trade_date"] or bar["close"] <= 0:
+                continue
+            result.setdefault(pure, []).append(bar)
+        # 批次间隔，降低限流概率
+        if i + batch_size < len(wcodes):
+            import time
+            time.sleep(0.35)
+
+    # 升序
+    for code, bars in result.items():
+        bars.sort(key=lambda x: x["trade_date"])
+    return result
 
 
 def find_westock_bin() -> Optional[str]:
@@ -39,29 +196,41 @@ def find_westock_bin() -> Optional[str]:
 
 def to_westock_code(ticker: str, market_hint: str = "") -> str:
     """把项目内代码转成 westock 前缀格式：sh/sz/hk/us。"""
-    raw = (ticker or "").strip().upper()
+    raw = (ticker or "").strip()
+    # 已带前缀
+    if re.match(r"^(sh|sz|bj|hk|us)", raw, re.I):
+        prefix = raw[:2].lower()
+        rest = raw[2:]
+        return f"{prefix}{rest}"
+
+    raw_u = raw.upper()
     hint = (market_hint or "").upper()
 
-    if raw.startswith(("SH", "SZ", "HK", "US")) and len(raw) > 2 and raw[2:].isdigit():
-        # 已是 sh600519 / hk01211 形态（大小写不一）
-        prefix = raw[:2].lower()
-        return f"{prefix}{raw[2:]}"
+    if raw_u.startswith(("SH", "SZ", "HK", "US")) and len(raw_u) > 2 and raw_u[2:].isdigit():
+        prefix = raw_u[:2].lower()
+        return f"{prefix}{raw_u[2:]}"
 
     # 01211.HK / 0700.HK
-    m = re.match(r"^0*(\d{1,5})\.HK$", raw)
+    m = re.match(r"^0*(\d{1,5})\.HK$", raw_u)
     if m or "HK" in hint or "港" in hint:
-        digits = m.group(1) if m else re.sub(r"\D", "", raw)
+        digits = m.group(1) if m else re.sub(r"\D", "", raw_u)
         if digits:
             return f"hk{digits.zfill(5)}"
 
     # 美股 ticker
-    if re.match(r"^[A-Z]{1,5}$", raw) and ("US" in hint or "美" in hint or not raw.isdigit()):
-        if not raw.isdigit():
-            return f"us{raw}"
+    if re.match(r"^[A-Z]{1,5}$", raw_u) and ("US" in hint or "美" in hint or not raw_u.isdigit()):
+        if not raw_u.isdigit():
+            return f"us{raw_u}"
 
     # A股 6 位
-    digits = re.sub(r"\D", "", raw)
+    digits = re.sub(r"\D", "", raw_u)
     if len(digits) == 6:
+        # 常见指数走上海前缀
+        if digits in {"000001", "000300", "000016", "000688", "000905", "000852"}:
+            # 注意：000001 个股是平安银行(sz)；仅当 hint 标明指数时用 sh
+            if "INDEX" in hint or "指数" in hint or digits != "000001":
+                if digits != "000001":
+                    return f"sh{digits}"
         if digits.startswith(("5", "6", "9")):
             return f"sh{digits}"
         return f"sz{digits}"

@@ -73,6 +73,7 @@ const routes: RouteRecordRaw[] = [
     path: '/screening',
     name: 'StockScreening',
     component: () => import('@/layouts/BasicLayout.vue'),
+    redirect: '/screening/strategy',
     meta: {
       title: '股票筛选',
       icon: 'Search',
@@ -81,11 +82,20 @@ const routes: RouteRecordRaw[] = [
     },
     children: [
       {
-        path: '',
-        name: 'StockScreeningHome',
-        component: () => import('@/views/Screening/index.vue'),
+        path: 'strategy',
+        name: 'StrategyScreening',
+        component: () => import('@/views/Screening/StrategyScreening.vue'),
         meta: {
-          title: '股票筛选',
+          title: '策略选股',
+          requiresAuth: true
+        }
+      },
+      {
+        path: 'condition',
+        name: 'ConditionScreening',
+        component: () => import('@/views/Screening/ConditionScreening.vue'),
+        meta: {
+          title: '条件筛选',
           requiresAuth: true
         }
       }

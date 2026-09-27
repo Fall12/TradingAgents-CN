@@ -8,7 +8,6 @@ from bson import ObjectId
 
 from app.core.database import get_mongo_db
 from app.models.user import FavoriteStock
-from app.services.quotes_service import get_quotes_service
 
 
 class FavoritesService:
@@ -77,30 +76,18 @@ class FavoritesService:
         codes = [it.get("stock_code") for it in items if it.get("stock_code")]
         if codes:
             try:
-                # 🔥 获取数据源优先级配置
-                from app.core.unified_config import UnifiedConfigManager
-                config = UnifiedConfigManager()
-                data_source_configs = await config.get_data_source_configs_async()
-
-                # 提取启用的数据源，按优先级排序
-                enabled_sources = [
-                    ds.type.lower() for ds in data_source_configs
-                    if ds.enabled and ds.type.lower() in ['tushare', 'akshare', 'baostock']
-                ]
-
-                if not enabled_sources:
-                    enabled_sources = ['tushare', 'akshare', 'baostock']
-
-                preferred_source = enabled_sources[0] if enabled_sources else 'tushare'
-
-                # 从 stock_basic_info 获取板块信息（只查询优先级最高的数据源）
                 basic_info_coll = db["stock_basic_info"]
+                # 不限 source：库内多为 westock/pytdx/akshare 混存，按源过滤常全空
                 cursor = basic_info_coll.find(
-                    {"code": {"$in": codes}, "source": preferred_source},  # 🔥 添加数据源筛选
-                    {"code": 1, "sse": 1, "market": 1, "_id": 0}
+                    {"$or": [{"code": {"$in": codes}}, {"symbol": {"$in": codes}}]},
+                    {"code": 1, "symbol": 1, "sse": 1, "market": 1, "name": 1, "_id": 0},
                 )
                 basic_docs = await cursor.to_list(length=None)
-                basic_map = {str(d.get("code")).zfill(6): d for d in (basic_docs or [])}
+                basic_map: Dict[str, Any] = {}
+                for d in basic_docs or []:
+                    for key in (d.get("code"), d.get("symbol")):
+                        if key:
+                            basic_map[str(key)] = d
 
                 for it in items:
                     code = it.get("stock_code")
@@ -110,6 +97,8 @@ class FavoritesService:
                         it["board"] = basic.get("market", "-")
                         # sse 字段表示交易所（上海证券交易所、深圳证券交易所等）
                         it["exchange"] = basic.get("sse", "-")
+                        if (not it.get("stock_name")) and basic.get("name"):
+                            it["stock_name"] = basic.get("name")
                     else:
                         it["board"] = "-"
                         it["exchange"] = "-"
@@ -119,32 +108,33 @@ class FavoritesService:
                     it["board"] = "-"
                     it["exchange"] = "-"
 
-        # 批量获取行情（优先使用入库的 market_quotes，30秒更新）
+        # 批量获取行情（仅读本地 market_quotes；不在列表加载时拉全市场快照）
+        # 说明：此前对缺失代码会调用 QuotesService → ak.stock_zh_a_spot_em() 全市场，
+        # 常耗 5s+，且对港股/美股无效，导致自选页长时间转圈。
         if codes:
             try:
                 coll = db["market_quotes"]
-                cursor = coll.find({"code": {"$in": codes}}, {"code": 1, "close": 1, "pct_chg": 1, "amount": 1})
+                # 兼容 code / symbol 两种字段
+                cursor = coll.find(
+                    {"$or": [{"code": {"$in": codes}}, {"symbol": {"$in": codes}}]},
+                    {"code": 1, "symbol": 1, "close": 1, "pct_chg": 1, "amount": 1},
+                )
                 docs = await cursor.to_list(length=None)
-                quotes_map = {str(d.get("code")).zfill(6): d for d in (docs or [])}
+                quotes_map: Dict[str, Any] = {}
+                for d in docs or []:
+                    k = str(d.get("code") or d.get("symbol") or "").zfill(6) if str(d.get("code") or d.get("symbol") or "").isdigit() else str(d.get("code") or d.get("symbol") or "")
+                    if k:
+                        quotes_map[k] = d
+                    # 港股代码保留原样（如 01211）
+                    raw = str(d.get("code") or d.get("symbol") or "")
+                    if raw:
+                        quotes_map[raw] = d
                 for it in items:
-                    code = it.get("stock_code")
-                    q = quotes_map.get(code)
+                    code = it.get("stock_code") or ""
+                    q = quotes_map.get(code) or quotes_map.get(code.zfill(6) if code.isdigit() else code)
                     if q:
                         it["current_price"] = q.get("close")
                         it["change_percent"] = q.get("pct_chg")
-                # 兜底：对未命中的代码使用在线源补齐（可选）
-                missing = [c for c in codes if c not in quotes_map]
-                if missing:
-                    try:
-                        quotes_online = await get_quotes_service().get_quotes(missing)
-                        for it in items:
-                            code = it.get("stock_code")
-                            if it.get("current_price") is None:
-                                q2 = quotes_online.get(code, {}) if quotes_online else {}
-                                it["current_price"] = q2.get("close")
-                                it["change_percent"] = q2.get("pct_chg")
-                    except Exception:
-                        pass
             except Exception:
                 # 查询失败时保持占位 None，避免影响基础功能
                 pass

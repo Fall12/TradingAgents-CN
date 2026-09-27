@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Optional, Literal, List, Dict, Any
 from pydantic import BaseModel, Field, field_serializer
 from bson import ObjectId
-from app.utils.timezone import now_tz
+from app.utils.timezone import now_tz, to_iso_beijing
 
 # 简单工具：ObjectId -> str
 
@@ -59,10 +59,8 @@ class NotificationOut(BaseModel):
 
     @field_serializer('created_at')
     def serialize_datetime(self, dt: Optional[datetime], _info) -> Optional[str]:
-        """序列化 datetime 为 ISO 8601 格式，保留时区信息"""
-        if dt:
-            return dt.isoformat()
-        return None
+        """序列化为北京时间 ISO8601（带 +08:00）"""
+        return to_iso_beijing(dt)
 
 
 class NotificationList(BaseModel):

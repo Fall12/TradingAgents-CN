@@ -288,6 +288,7 @@ import {
 import { useAuthStore } from '@/stores/auth'
 import { marked } from 'marked'
 import { getMarketByStockCode } from '@/utils/market'
+import { formatDateTime } from '@/utils/datetime'
 import type { CurrencyAmount } from '@/api/paper'
 
 type ReportModuleContent = string | Record<string, unknown>
@@ -764,7 +765,7 @@ const getStatusText = (status: string) => {
 }
 
 const formatTime = (time: string) => {
-  return new Date(time).toLocaleString('zh-CN')
+  return formatDateTime(time)
 }
 
 // 将分析师英文名称转换为中文

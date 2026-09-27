@@ -11,7 +11,7 @@ from app.core.database import get_mongo_db, get_redis_client
 from app.models.notification import (
     NotificationCreate, NotificationOut, NotificationList
 )
-from app.utils.timezone import now_tz
+from app.utils.timezone import now_tz, to_iso_beijing
 
 logger = logging.getLogger("webapi.notifications")
 
@@ -57,7 +57,7 @@ class NotificationsService:
             "link": doc.get("link"),
             "source": doc.get("source"),
             "status": doc.get("status", "unread"),
-            "created_at": doc["created_at"].isoformat(),
+            "created_at": to_iso_beijing(doc["created_at"]),
         }
 
         # 🔥 使用 WebSocket 发送通知

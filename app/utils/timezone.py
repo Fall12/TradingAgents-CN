@@ -43,6 +43,15 @@ def to_config_tz(dt: Optional[datetime]) -> Optional[datetime]:
     return dt.astimezone(get_tz())
 
 
+def to_iso_beijing(dt: Optional[datetime]) -> Optional[str]:
+    """Serialize datetime as Asia/Shanghai ISO8601 with +08:00 offset.
+
+    MongoDB BSON Date is UTC; naive values from drivers are treated as UTC.
+    """
+    local = to_config_tz(dt)
+    return local.isoformat() if local else None
+
+
 def ensure_timezone(dt: Optional[datetime]) -> Optional[datetime]:
     """
     确保 datetime 对象包含时区信息

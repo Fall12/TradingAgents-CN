@@ -4,6 +4,11 @@
 
 import { ApiClient } from './request'
 import { useAuthStore } from '@/stores/auth'
+import { formatDateTime as formatDateTimeUtil } from '@/utils/datetime'
+
+export const formatDateTime = (dateTime: string): string => {
+  return formatDateTimeUtil(dateTime)
+}
 
 // 数据库状态接口
 export interface DatabaseStatus {
@@ -218,10 +223,6 @@ export const formatBytes = (bytes: number): string => {
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
-}
-
-export const formatDateTime = (dateTime: string): string => {
-  return new Date(dateTime).toLocaleString('zh-CN')
 }
 
 export const formatUptime = (seconds: number): string => {

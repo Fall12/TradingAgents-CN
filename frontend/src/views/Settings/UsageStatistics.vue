@@ -142,6 +142,7 @@ import { ref, onMounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { DataAnalysis, Refresh, Document, Upload, Download, Money } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
+import { formatDateTime } from '@/utils/datetime'
 import {
   getUsageRecords,
   getUsageStatistics,
@@ -180,7 +181,7 @@ let dailyChart: echarts.ECharts | null = null
 
 // 格式化时间戳
 const formatTimestamp = (timestamp: string) => {
-  return new Date(timestamp).toLocaleString('zh-CN')
+  return formatDateTime(timestamp)
 }
 
 // 获取货币符号

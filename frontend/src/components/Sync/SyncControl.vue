@@ -192,6 +192,7 @@ import {
   type SyncStatus, 
   type DataSourceStatus 
 } from '@/api/sync'
+import { formatDateTime } from '@/utils/datetime'
 
 type TagType = 'primary' | 'success' | 'warning' | 'info' | 'danger'
 
@@ -495,19 +496,7 @@ const getSyncButtonText = () => {
 
 // 格式化时间
 const formatTime = (isoString: string) => {
-  try {
-    const date = new Date(isoString)
-    return date.toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    })
-  } catch {
-    return isoString
-  }
+  return formatDateTime(isoString)
 }
 
 
