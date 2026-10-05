@@ -75,6 +75,8 @@ export interface StrategyScreenItem {
   pct_chg?: number
   industry?: string
   mode?: StrategyMode
+  setup_tag?: string
+  setup_score?: number
 }
 
 export interface StrategyScreenResp {

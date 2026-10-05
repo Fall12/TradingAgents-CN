@@ -15,6 +15,16 @@ from tradingagents.agents.utils.google_tool_handler import GoogleToolCallHandler
 from tradingagents.agents.utils.instrument_utils import build_instrument_context
 
 
+def _finalize_market_report(report: str, ticker: str) -> str:
+    """确保市场报告含板块快照（系统注入，避免模型漏写）。"""
+    try:
+        from tradingagents.sector_trend import inject_sector_section
+        return inject_sector_section(report or "", ticker)
+    except Exception as e:
+        logger.warning(f"板块环境注入失败 {ticker}: {e}")
+        return report or ""
+
+
 def _get_company_name(ticker: str, market_info: dict) -> str:
     """
     根据股票代码获取公司名称
@@ -173,14 +183,18 @@ def create_market_analyst(llm, toolkit):
                     "- 股票代码：{ticker}\n"
                     "- 所属市场：{market_name}\n"
                     "\n"
+                    "## 🏷 板块环境\n"
+                    "[若标的约束中含「所属板块趋势快照」，必须在此引用状态/阶段/超额/广度/个股相对板块，"
+                    "并说明对买卖节奏的含义；无快照则写明数据不可用，禁止编造]\n"
+                    "\n"
                     "## 📈 技术指标分析\n"
                     "[在这里分析移动平均线、MACD、RSI、布林带等技术指标，提供具体数值]\n"
                     "\n"
                     "## 📉 价格趋势分析\n"
-                    "[在这里分析价格趋势，考虑{market_name}市场特点]\n"
+                    "[在这里分析价格趋势，考虑{market_name}市场特点；结合板块阶段判断是顺势还是逆势]\n"
                     "\n"
                     "## 💭 投资建议\n"
-                    "[在这里给出明确的投资建议：买入/持有/卖出]\n"
+                    "[在这里给出明确的投资建议：买入/持有/卖出；板块衰竭/反转时需更谨慎]\n"
                     "\n"
                     "⚠️ **重要提醒：**\n"
                     "- 必须使用上述格式输出，不要自创标题格式\n"
@@ -283,7 +297,7 @@ def create_market_analyst(llm, toolkit):
             # 🔧 更新工具调用计数器
             return {
                 "messages": [result],
-                "market_report": report,
+                "market_report": _finalize_market_report(report, ticker),
                 "market_tool_call_count": tool_call_count + 1
             }
         else:
@@ -300,7 +314,7 @@ def create_market_analyst(llm, toolkit):
             # 处理市场分析报告
             if len(result.tool_calls) == 0:
                 # 没有工具调用，直接使用LLM的回复
-                report = result.content
+                report = _finalize_market_report(result.content, ticker)
                 logger.info(f"📊 [市场分析师] ✅ 直接回复（无工具调用），长度: {len(report)}")
                 logger.debug(f"📊 [DEBUG] 直接回复内容预览: {report[:200]}...")
             else:
@@ -380,6 +394,14 @@ def create_market_analyst(llm, toolkit):
 - **当前价格**：[从工具数据中获取] {market_info['currency_symbol']}
 - **涨跌幅**：[从工具数据中获取]
 - **成交量**：[从工具数据中获取]
+
+---
+
+## 板块环境（系统数据）
+
+{instrument_context}
+
+请在后文技术分析与投资建议中引用上述板块状态/阶段/相对强弱；勿编造与快照矛盾的板块结论。
 
 ---
 
@@ -483,7 +505,7 @@ def create_market_analyst(llm, toolkit):
                     # 🔧 更新工具调用计数器
                     return {
                         "messages": [result] + tool_messages + [final_result],
-                        "market_report": report,
+                        "market_report": _finalize_market_report(report, ticker),
                         "market_tool_call_count": tool_call_count + 1
                     }
 
@@ -497,14 +519,14 @@ def create_market_analyst(llm, toolkit):
                     # 🔧 更新工具调用计数器
                     return {
                         "messages": [result],
-                        "market_report": report,
+                        "market_report": _finalize_market_report(report, ticker),
                         "market_tool_call_count": tool_call_count + 1
                     }
 
             # 🔧 更新工具调用计数器
             return {
                 "messages": [result],
-                "market_report": report,
+                "market_report": _finalize_market_report(report, ticker),
                 "market_tool_call_count": tool_call_count + 1
             }
 

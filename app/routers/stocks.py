@@ -12,6 +12,7 @@ import re
 from app.routers.auth_db import get_current_user
 from app.core.database import get_mongo_db
 from app.core.response import ok
+from app.utils.timezone import to_iso_beijing
 
 logger = logging.getLogger(__name__)
 
@@ -206,7 +207,8 @@ async def get_quote(
         "turnover_rate_date": turnover_rate_date,  # 🔥 新增：换手率数据日期
         "amplitude_date": amplitude_date,  # 🔥 新增：振幅数据日期
         "trade_date": (q or {}).get("trade_date"),
-        "updated_at": (q or {}).get("updated_at"),
+        # Mongo datetime 为 UTC；序列化为带 +08:00 的北京时间，避免前端误读
+        "updated_at": to_iso_beijing((q or {}).get("updated_at")),
     }
 
     return ok(data)

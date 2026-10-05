@@ -1194,25 +1194,28 @@ function formatSyncTime(timeStr: string | null | undefined): string {
   return `${timeStr} (UTC+8)`
 }
 
-// 🔥 新增：格式化股票更新时间
+// 格式化股票更新时间（统一显示为北京时间）
 function formatQuoteUpdateTime(timeStr: string | null | undefined): string {
   if (!timeStr) return '未更新'
   try {
-    // 后端返回的时间已经是 UTC+8 时区，但没有时区标识
-    // 需要手动添加 +08:00 时区标识，然后转换为本地时间显示
-    let isoString = timeStr
-    if (!timeStr.includes('+') && !timeStr.includes('Z')) {
-      // 如果没有时区标识，添加 +08:00
-      isoString = timeStr.replace(/(\.\d+)?$/, '+08:00')
+    let isoString = String(timeStr).trim()
+    // 已有时区（+08:00 / Z / ±hh:mm）→ 直接解析
+    // 无时区：Mongo/旧接口多为 UTC naive，按 UTC 解析后再转到本地显示
+    const hasTz = /([zZ]|[+-]\d{2}:?\d{2})$/.test(isoString)
+    if (!hasTz) {
+      isoString = isoString.replace(' ', 'T') + 'Z'
     }
     const date = new Date(isoString)
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    const hours = String(date.getHours()).padStart(2, '0')
-    const minutes = String(date.getMinutes()).padStart(2, '0')
-    const seconds = String(date.getSeconds()).padStart(2, '0')
-    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+    if (Number.isNaN(date.getTime())) return timeStr
+    // 用 Asia/Shanghai 固定格式，避免依赖浏览器时区设置
+    const parts = new Intl.DateTimeFormat('zh-CN', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hour12: false,
+    }).formatToParts(date)
+    const get = (t: string) => parts.find(p => p.type === t)?.value || '00'
+    return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}:${get('second')}`
   } catch (e) {
     return timeStr
   }

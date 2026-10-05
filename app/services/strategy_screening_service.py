@@ -44,6 +44,8 @@ _CACHE_COLLECTION = "strategy_screen_cache"
 _CACHE_TTL = timedelta(days=1)
 _TZ_SH = ZoneInfo("Asia/Shanghai")
 _FUNDAMENTALS_SYNC_TTL = timedelta(days=1)
+# 排序规则版本：改排序时 bump，避免命中旧缓存
+_RANK_VERSION = "v2pullback_right"
 
 
 def _safe_float(v: Any, default: float = 0.0) -> float:
@@ -73,6 +75,122 @@ def _pure_code(raw: str) -> str:
     return re.sub(r"\D", "", s) or s
 
 
+def _trend_pullback_rank(r: pd.Series) -> Tuple[float, str]:
+    """
+    趋势策略：回调买点优先。
+    大趋势仍须 close>MA60>MA250；排序偏向贴近均线、短线回撤、未过度拉伸。
+    返回 (pullback_score 越高越优先, 标签)。
+    """
+    close = float(r["close"])
+    ma20 = float(r["ma20"]) if not np.isnan(r.get("ma20", np.nan)) else 0.0
+    ma60 = float(r["ma60"]) if not np.isnan(r.get("ma60", np.nan)) else 0.0
+    ret5 = float(r["return_5"]) if not np.isnan(r.get("return_5", np.nan)) else 0.0
+    ret20 = float(r["return_20"]) if not np.isnan(r.get("return_20", np.nan)) else 0.0
+    atr_pct = float(r["atr_pct"]) if not np.isnan(r.get("atr_pct", np.nan)) else 0.05
+
+    if ma20 <= 0 or ma60 <= 0 or close <= 0:
+        return 0.0, "趋势中"
+
+    dist20 = (close - ma20) / ma20  # 相对 MA20 偏离
+    dist60 = (close - ma60) / ma60
+
+    score = 0.0
+    # 贴近 MA20（理想 0%~4%），过远扣分（追高）
+    if -0.01 <= dist20 <= 0.04:
+        score += 45
+    elif 0.04 < dist20 <= 0.08:
+        score += 25
+    elif dist20 > 0.12:
+        score -= 30
+    elif dist20 < -0.02:
+        score -= 10  # 已破 MA20，偏弱回调
+
+    # 仍在 MA60 上方但未拉太开
+    if 0.02 <= dist60 <= 0.15:
+        score += 25
+    elif dist60 > 0.25:
+        score -= 20
+
+    # 近端回撤（5 日略跌/横盘）= 回调特征
+    if -0.08 <= ret5 <= 0.01:
+        score += 20
+    elif ret5 > 0.05:
+        score -= 15  # 刚急涨，不像回调点
+
+    # 20 日仍偏强（回调而非趋势坏掉）
+    if ret20 > 0:
+        score += 10
+
+    # 低波加分（同 S4 气质）
+    if atr_pct < 0.035:
+        score += 5
+
+    if -0.01 <= dist20 <= 0.04 and ret5 <= 0.01:
+        tag = "回调买点"
+    elif dist20 > 0.10:
+        tag = "偏高位"
+    else:
+        tag = "趋势中"
+    return float(score), tag
+
+
+def _value_right_side_rank(df: pd.DataFrame) -> Tuple[float, str]:
+    """
+    价值策略：开始右侧优先。
+    基本面已过关；技术上偏好刚站上均线 / 中期动量转正 / 未疯狂拉升。
+    """
+    if df is None or len(df) < 60:
+        return 0.0, "待观察"
+    close = df["close"].astype(float)
+    ma20 = close.rolling(20).mean()
+    ma60 = close.rolling(60).mean()
+    c = float(close.iloc[-1])
+    m20 = float(ma20.iloc[-1]) if not np.isnan(ma20.iloc[-1]) else 0.0
+    m60 = float(ma60.iloc[-1]) if not np.isnan(ma60.iloc[-1]) else 0.0
+    m20_prev = float(ma20.iloc[-6]) if len(ma20) >= 6 and not np.isnan(ma20.iloc[-6]) else m20
+    ret5 = float(close.iloc[-1] / close.iloc[-6] - 1) if len(close) > 5 else 0.0
+    ret20 = float(close.iloc[-1] / close.iloc[-21] - 1) if len(close) > 20 else 0.0
+    ret60 = float(close.iloc[-1] / close.iloc[-61] - 1) if len(close) > 60 else 0.0
+
+    score = 0.0
+    above20 = m20 > 0 and c > m20
+    above60 = m60 > 0 and c > m60
+    ma20_up = m20 > m20_prev
+
+    if above20 and above60:
+        score += 30
+    elif above20:
+        score += 20
+    if ma20_up:
+        score += 15
+
+    # 刚启动：20 日转正、60 日尚未疯涨
+    if ret20 > 0:
+        score += 20
+    if 0 < ret60 < 0.25:
+        score += 15
+    elif ret60 >= 0.40:
+        score -= 15  # 右侧已走远
+
+    # 贴近 MA20/MA60 的「起步区」优于已拉升
+    if m20 > 0:
+        dist20 = (c - m20) / m20
+        if 0 <= dist20 <= 0.06:
+            score += 20
+        elif dist20 > 0.15:
+            score -= 10
+
+    if above20 and ma20_up and ret20 > 0 and ret60 < 0.35:
+        tag = "右侧起步"
+    elif above20 and ret20 > 0:
+        tag = "偏右侧"
+    elif not above20 and ret60 < 0:
+        tag = "仍左侧"
+    else:
+        tag = "待观察"
+    return float(score), tag
+
+
 class StrategyScreeningService:
     """趋势 / 价值策略选股"""
 
@@ -83,7 +201,7 @@ class StrategyScreeningService:
         return datetime.now(_TZ_SH).strftime("%Y-%m-%d")
 
     def _cache_key(self, mode: str, limit: int) -> str:
-        return f"{mode}:{int(limit)}:{self._today_sh()}"
+        return f"{mode}:{_RANK_VERSION}:{int(limit)}:{self._today_sh()}"
 
     def _get_result_cache(self, mode: str, limit: int) -> Optional[Dict[str, Any]]:
         if self.db is None:
@@ -245,7 +363,7 @@ class StrategyScreeningService:
         return {"synced": len(ops), "wrote": n, "as_of": now.strftime("%Y-%m-%d")}
 
     def _scan_value_from_db(self, limit: int) -> List[Dict[str, Any]]:
-        """从 stock_basic_info 本地筛选价值标的。"""
+        """从 stock_basic_info 本地筛选价值标的（先多取，再按右侧排序截断）。"""
         if self.db is None:
             return []
         cursor = self.db.stock_basic_info.find(
@@ -300,8 +418,52 @@ class StrategyScreeningService:
                 "industry": doc.get("industry") or "",
                 "score": score,
                 "mode": "value",
+                "setup_tag": "待观察",
+                "setup_score": 0.0,
             })
+        # 基本面先筛一批，供右侧打分（最多 80）
         items.sort(key=lambda x: (-x.get("score", 0), x.get("pe", 99)))
+        return items[: max(limit * 4, 80)]
+
+    def _enrich_value_right_side(self, items: List[Dict[str, Any]], limit: int) -> List[Dict[str, Any]]:
+        """对价值候选打「右侧起步」分，优先排前。"""
+        if not items:
+            return items
+        try:
+            from tradingagents.dataflows.providers.westock_cli import fetch_daily_klines
+        except Exception as e:
+            logger.warning(f"价值右侧排序：无法导入 westock: {e}")
+            items.sort(key=lambda x: (-x.get("score", 0), x.get("pe", 99)))
+            return items[:limit]
+
+        codes = [it["code"] for it in items]
+        try:
+            klines = fetch_daily_klines(codes, limit=120, fq="qfq")
+        except Exception as e:
+            logger.warning(f"价值右侧排序：拉日线失败: {e}")
+            items.sort(key=lambda x: (-x.get("score", 0), x.get("pe", 99)))
+            return items[:limit]
+
+        for it in items:
+            bars = klines.get(it["code"]) or []
+            if len(bars) < 60:
+                it["setup_score"] = 0.0
+                it["setup_tag"] = "待观察"
+                continue
+            df = pd.DataFrame(bars)
+            df["close"] = pd.to_numeric(df["close"], errors="coerce")
+            rs, tag = _value_right_side_rank(df)
+            it["setup_score"] = round(rs, 1)
+            it["setup_tag"] = tag
+
+        # 右侧优先，其次 ROE/PE
+        items.sort(
+            key=lambda x: (
+                -float(x.get("setup_score") or 0),
+                -float(x.get("score") or 0),
+                float(x.get("pe") or 99),
+            )
+        )
         return items[:limit]
 
     def _scan_value_sync(self, limit: int) -> Dict[str, Any]:
@@ -322,6 +484,7 @@ class StrategyScreeningService:
             sync_meta = self._sync_value_fundamentals()
 
         items = self._scan_value_from_db(limit)
+        items = self._enrich_value_right_side(items, limit)
         note = ""
         if sync_meta.get("skipped"):
             note = ""
@@ -331,10 +494,12 @@ class StrategyScreeningService:
             note = "同步完成，但本地无符合 PE/PB/ROE/市值条件的标的"
         if not items and not note:
             note = "本地无符合 PE/PB/ROE/市值条件的标的"
+        if items:
+            note = (note + " · " if note else "") + "排序：右侧起步优先，其次 ROE/PE"
 
         result = {
             "mode": "value",
-            "label": "价值交易 · PE/PB/ROE",
+            "label": "价值交易 · PE/PB/ROE · 右侧优先",
             "as_of": sync_meta.get("as_of") or self._today_sh(),
             "market_ok": True,
             "market_note": note,
@@ -485,6 +650,7 @@ class StrategyScreeningService:
             atr_pct = float(r["atr_pct"]) if not np.isnan(r["atr_pct"]) else 0
             mom_mid = float(r["mom_mid"]) if not np.isnan(r["mom_mid"]) else 0
             ret_20 = float(r["return_20"]) if not np.isnan(r["return_20"]) else 0
+            pull_score, setup_tag = _trend_pullback_rank(r)
             items.append({
                 "code": code,
                 "symbol": code,
@@ -499,13 +665,21 @@ class StrategyScreeningService:
                 "pct_chg": None,
                 "mode": "trend",
                 "reason": reason,
+                "setup_tag": setup_tag,
+                "setup_score": round(pull_score, 1),
             })
             if len(df) >= 2:
                 prev = float(df.iloc[-2]["close"])
                 if prev > 0:
                     items[-1]["pct_chg"] = round((close / prev - 1) * 100, 2)
 
-        items.sort(key=lambda x: -x.get("score", 0))
+        # 回调买点优先，其次 S4 风险调整评分
+        items.sort(
+            key=lambda x: (
+                -float(x.get("setup_score") or 0),
+                -float(x.get("score") or 0),
+            )
+        )
         items = items[:limit]
 
         note = ""
@@ -513,10 +687,12 @@ class StrategyScreeningService:
             note = "大盘弱于年线（沪深300 < MA250），请谨慎"
         if not items:
             note = note or "当日无符合条件标的"
+        elif not note:
+            note = "排序：回调买点优先，其次 S4 评分"
 
         result = {
             "mode": "trend",
-            "label": "趋势交易 · S4 低波动量",
+            "label": "趋势交易 · S4 低波动量 · 回调优先",
             "as_of": as_of,
             "market_ok": market_ok,
             "market_note": note,

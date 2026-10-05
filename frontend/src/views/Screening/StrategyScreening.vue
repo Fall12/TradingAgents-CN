@@ -40,8 +40,8 @@
         </el-button>
       </div>
       <div class="strategy-hints">
-        <p><strong>趋势交易</strong>：close &gt; MA60 &gt; MA250，ATR%&lt;5%，中期动量&gt;10%，跑赢大盘，按<strong>评分</strong>从高到低排名</p>
-        <p><strong>价值交易</strong>：PE 5~25，PB≤3，ROE≥15%，市值≥50亿，排除 ST/金融，按<strong>ROE/PE</strong>从高到低排名</p>
+        <p><strong>趋势交易</strong>：close &gt; MA60 &gt; MA250，ATR%&lt;5%，中期动量&gt;10%，跑赢大盘；排序优先<strong>回调买点</strong>（贴近 MA20、短线回撤），其次 S4 评分</p>
+        <p><strong>价值交易</strong>：PE 5~25，PB≤3，ROE≥15%，市值≥50亿，排除 ST/金融；排序优先<strong>右侧起步</strong>（站上均线且中期刚转正），其次 ROE/PE</p>
       </div>
     </el-card>
 
@@ -99,6 +99,20 @@
         </el-table-column>
 
         <el-table-column prop="name" label="股票名称" width="130" />
+
+        <el-table-column prop="setup_tag" label="形态" width="100" align="center">
+          <template #default="{ row }">
+            <el-tag
+              v-if="row.setup_tag"
+              size="small"
+              :type="setupTagType(row.setup_tag)"
+              effect="plain"
+            >
+              {{ row.setup_tag }}
+            </el-tag>
+            <span v-else class="text-muted">-</span>
+          </template>
+        </el-table-column>
 
         <!-- 趋势列 -->
         <template v-if="activeMode === 'trend'">
@@ -245,6 +259,13 @@ const paginatedResults = computed(() => {
   return screeningResults.value.slice(start, end)
 })
 
+const setupTagType = (tag: string) => {
+  if (tag === '回调买点' || tag === '右侧起步') return 'success'
+  if (tag === '偏右侧' || tag === '趋势中') return 'warning'
+  if (tag === '偏高位' || tag === '仍左侧') return 'danger'
+  return 'info'
+}
+
 const mapItems = (items: any[]): StockInfo[] =>
   items.map((it: any) => ({
     symbol: it.symbol || it.code,
@@ -263,6 +284,8 @@ const mapItems = (items: any[]): StockInfo[] =>
     excess_20: it.excess_20,
     atr_pct: it.atr_pct,
     hard_stop: it.hard_stop,
+    setup_tag: it.setup_tag,
+    setup_score: it.setup_score,
   })) as StockInfo[]
 
 const runStrategy = async (mode: StrategyMode) => {
